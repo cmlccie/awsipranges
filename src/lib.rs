@@ -90,6 +90,21 @@ impl AwsIpRanges {
             ipv4_prefixes
                 .entry(json_ipv4_prefix.ip_prefix)
                 .and_modify(|ipv4_prefix| {
+                    // Verify IP prefix invariants
+                    // An IP prefix should always be assigned to a single region and network border group
+                    assert_eq!(
+                        ipv4_prefix.region,
+                        get_rc_string(json_ipv4_prefix.region, &regions).unwrap()
+                    );
+                    assert_eq!(
+                        ipv4_prefix.network_border_group,
+                        get_rc_string(
+                            json_ipv4_prefix.network_border_group,
+                            &network_border_groups
+                        )
+                        .unwrap()
+                    );
+                    // Duplicate IP prefix entries are used to indicate multiple AWS services use a prefix
                     ipv4_prefix
                         .services
                         .insert(get_rc_string(json_ipv4_prefix.service, &services).unwrap());
@@ -113,6 +128,21 @@ impl AwsIpRanges {
             ipv6_prefixes
                 .entry(json_ipv6_prefix.ipv6_prefix)
                 .and_modify(|ipv6_prefix| {
+                    // Verify IP prefix invariants
+                    // An IP prefix should always be assigned to a single region and network border group
+                    assert_eq!(
+                        ipv6_prefix.region,
+                        get_rc_string(json_ipv6_prefix.region, &regions).unwrap()
+                    );
+                    assert_eq!(
+                        ipv6_prefix.network_border_group,
+                        get_rc_string(
+                            json_ipv6_prefix.network_border_group,
+                            &network_border_groups
+                        )
+                        .unwrap()
+                    );
+                    // Duplicate IP prefix entries are used to indicate multiple AWS services use a prefix
                     ipv6_prefix
                         .services
                         .insert(get_rc_string(json_ipv6_prefix.service, &services).unwrap());
