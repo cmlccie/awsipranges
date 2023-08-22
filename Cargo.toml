@@ -1,5 +1,6 @@
 [package]
 name = "awsipranges"
+authors = ["Chris Lunsford <cm@lunsford.io>"]
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +8,7 @@ edition = "2021"
 
 [dependencies]
 chrono = { version = "0.4.26", features = ["serde"] }
+clap = { version = "4.3.23", features = ["derive"] }
 ipnetwork = "0.20.0"
 reqwest = { version = "0.11.18", features = ["json", "blocking"] }
 serde = { version = "1.0.183", features = ["derive"] }
