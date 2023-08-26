@@ -1,19 +1,39 @@
+#[macro_use]
+extern crate lazy_static;
 use chrono::{DateTime, Utc};
+use config::Config;
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use reqwest;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::convert::From;
 use std::fs;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 // -------------------------------------------------------------------------------------
-// Constants
+// Configuration
 // -------------------------------------------------------------------------------------
 
-const AWS_IP_RANGES_URL: &str = "https://ip-ranges.amazonaws.com/ip-ranges.json";
-const AWS_IP_RANGES_FILE_PATH: &str = "/Users/chris.lunsford/.aws/ip-ranges.json";
-const CACHE_REFRESH_TIME: u64 = 24 * 60 * 60; // 24 hours in seconds
+lazy_static! {
+    // static ref AWS_IP_RANGES_CONFIG_BUILDER: ConfigBuilder<DefaultState> =
+   static ref AWS_IP_RANGES_CONFIG: Config = {
+        let config_builder = Config::builder()
+        .set_default("url", "https://ip-ranges.amazonaws.com/ip-ranges.json").unwrap()
+        .set_default(
+            "cache_file",
+            [
+                dirs::home_dir().unwrap().to_str().unwrap(),
+                ".aws",
+                "ip-ranges.json",
+            ]
+            .iter()
+            .collect::<PathBuf>().to_str(),
+        ).unwrap()
+        .set_default("cache_time", 24 * 60 * 60).unwrap();
+        config_builder.build().unwrap()
+   };
+}
 
 // -------------------------------------------------------------------------------------
 // AWS IP Ranges
@@ -194,12 +214,16 @@ pub type AwsIpRangesResult<T> = Result<T, AwsIpRangesError>;
 // -------------------------------------------------------------------------------------
 
 pub fn get_json() -> AwsIpRangesResult<String> {
-    if let Ok(_) = fs::canonicalize(AWS_IP_RANGES_FILE_PATH) {
+    let cache_path: PathBuf = AWS_IP_RANGES_CONFIG.get_string("cache_file")?.into();
+    let cache_time = AWS_IP_RANGES_CONFIG.get_int("cache_time")?.try_into()?;
+
+    println!("Home Directory: {:?}", dirs::home_dir());
+    println!("Cache Path: {:?}", &cache_path);
+
+    if let Ok(_) = fs::canonicalize(&cache_path) {
         // Cache file exists
-        let elapsed = fs::metadata(AWS_IP_RANGES_FILE_PATH)?
-            .modified()?
-            .elapsed()?;
-        if elapsed.as_secs() <= CACHE_REFRESH_TIME {
+        let elapsed = fs::metadata(&cache_path)?.modified()?.elapsed()?;
+        if elapsed.as_secs() <= cache_time {
             println!("IP ranges cache is fresh; use cache");
             get_json_from_file()
         } else {
@@ -215,10 +239,10 @@ pub fn get_json() -> AwsIpRangesResult<String> {
         }
     } else {
         // Cache file does not exist
-        println!("Cache file does not exist; get JSON from URL and cache the result");
+        println!("Cache file does not exist; get JSON from URL and attempt to cache the result");
         match get_json_from_url() {
             Ok(json) => {
-                cache_json_to_file(&json)?;
+                let _ = cache_json_to_file(&json);
                 Ok(json)
             }
             Err(error) => Err(error),
@@ -227,15 +251,21 @@ pub fn get_json() -> AwsIpRangesResult<String> {
 }
 
 fn cache_json_to_file(json: &str) -> AwsIpRangesResult<()> {
-    Ok(fs::write(AWS_IP_RANGES_FILE_PATH, json)?)
+    let cache_path: PathBuf = AWS_IP_RANGES_CONFIG.get_string("cache_file")?.into();
+
+    // Ensure parent directories exist
+    cache_path.parent().map(|parent| fs::create_dir_all(parent));
+
+    Ok(fs::write(cache_path, json)?)
 }
 
 fn get_json_from_file() -> AwsIpRangesResult<String> {
-    Ok(fs::read_to_string(AWS_IP_RANGES_FILE_PATH)?)
+    let cache_path: PathBuf = AWS_IP_RANGES_CONFIG.get_string("cache_file")?.into();
+    Ok(fs::read_to_string(cache_path)?)
 }
 
 fn get_json_from_url() -> AwsIpRangesResult<String> {
-    let response = reqwest::blocking::get(AWS_IP_RANGES_URL)?;
+    let response = reqwest::blocking::get(AWS_IP_RANGES_CONFIG.get_string("url")?)?;
     Ok(response.text()?)
 }
 
