@@ -48,7 +48,7 @@ struct Args {
     ip_prefix: Option<String>,
 }
 
-fn main() {
+fn main() -> awsipranges::AwsIpRangesResult<()> {
     let args = Args::parse();
 
     println!("Arguments:");
@@ -56,19 +56,15 @@ fn main() {
     println!("  Network Border Groups: {:?}", args.network_border_groups);
     println!("  Services: {:?}", args.services);
 
-    let aws_ip_ranges = awsipranges::AwsIpRanges::new();
+    let aws_ip_ranges = awsipranges::AwsIpRanges::new()?;
+
+    println!("Number of Prefixes: {}", aws_ip_ranges.prefixes.len());
+    println!("");
 
     println!("sync_token:    {}", aws_ip_ranges.sync_token);
     println!("creation_date: {}", aws_ip_ranges.create_date);
     println!("");
-    println!(
-        "First {:?}",
-        aws_ip_ranges.ipv4_prefixes.iter().next().unwrap()
-    );
-    println!(
-        "First {:?}",
-        aws_ip_ranges.ipv6_prefixes.iter().next().unwrap()
-    );
+    println!("First {:?}", aws_ip_ranges.prefixes.iter().next().unwrap());
     println!("");
     println!("Regions {:?}", aws_ip_ranges.regions);
     println!("");
@@ -78,4 +74,5 @@ fn main() {
     );
     println!("");
     println!("Services {:?}", aws_ip_ranges.services);
+    Ok(())
 }

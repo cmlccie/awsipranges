@@ -1,9 +1,19 @@
 use chrono::{DateTime, Utc};
-use ipnetwork::{Ipv4Network, Ipv6Network};
+use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use reqwest;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
+use std::convert::From;
+use std::fs;
 use std::rc::Rc;
+
+// -------------------------------------------------------------------------------------
+// Constants
+// -------------------------------------------------------------------------------------
+
+const AWS_IP_RANGES_URL: &str = "https://ip-ranges.amazonaws.com/ip-ranges.json";
+const AWS_IP_RANGES_FILE_PATH: &str = "/Users/chris.lunsford/.aws/ip-ranges.json";
+const CACHE_REFRESH_TIME: u64 = 24 * 60 * 60; // 24 hours in seconds
 
 // -------------------------------------------------------------------------------------
 // AWS IP Ranges
@@ -18,29 +28,20 @@ pub struct AwsIpRanges {
     pub network_border_groups: HashSet<Rc<String>>,
     pub services: HashSet<Rc<String>>,
 
-    pub ipv4_prefixes: BTreeMap<Ipv4Network, AwsIPv4Prefix>,
-    pub ipv6_prefixes: BTreeMap<Ipv6Network, AwsIPv6Prefix>,
+    pub prefixes: BTreeMap<IpNetwork, AwsIpPrefix>,
 }
 
 #[derive(Debug)]
-pub struct AwsIPv4Prefix {
-    pub prefix: Ipv4Network,
-    pub region: Rc<String>,
-    pub network_border_group: Rc<String>,
-    pub services: HashSet<Rc<String>>,
-}
-
-#[derive(Debug)]
-pub struct AwsIPv6Prefix {
-    pub prefix: Ipv6Network,
+pub struct AwsIpPrefix {
+    pub prefix: IpNetwork,
     pub region: Rc<String>,
     pub network_border_group: Rc<String>,
     pub services: HashSet<Rc<String>>,
 }
 
 impl AwsIpRanges {
-    pub fn new() -> AwsIpRanges {
-        let json = get_json_from_url();
+    pub fn new() -> AwsIpRangesResult<AwsIpRanges> {
+        let json = get_json()?;
         let json_ip_ranges = parse_json(&json);
 
         let sync_token = json_ip_ranges.sync_token.to_string();
@@ -85,19 +86,20 @@ impl AwsIpRanges {
             .map(|service| Rc::new(service.to_string()))
             .collect();
 
-        let mut ipv4_prefixes: BTreeMap<Ipv4Network, AwsIPv4Prefix> = BTreeMap::new();
+        let mut prefixes: BTreeMap<IpNetwork, AwsIpPrefix> = BTreeMap::new();
+
         for json_ipv4_prefix in &json_ip_ranges.prefixes {
-            ipv4_prefixes
-                .entry(json_ipv4_prefix.ip_prefix)
-                .and_modify(|ipv4_prefix| {
+            prefixes
+                .entry(IpNetwork::V4(json_ipv4_prefix.ip_prefix))
+                .and_modify(|prefix| {
                     // Verify IP prefix invariants
                     // An IP prefix should always be assigned to a single region and network border group
                     assert_eq!(
-                        ipv4_prefix.region,
+                        prefix.region,
                         get_rc_string(json_ipv4_prefix.region, &regions).unwrap()
                     );
                     assert_eq!(
-                        ipv4_prefix.network_border_group,
+                        prefix.network_border_group,
                         get_rc_string(
                             json_ipv4_prefix.network_border_group,
                             &network_border_groups
@@ -105,12 +107,12 @@ impl AwsIpRanges {
                         .unwrap()
                     );
                     // Duplicate IP prefix entries are used to indicate multiple AWS services use a prefix
-                    ipv4_prefix
+                    prefix
                         .services
                         .insert(get_rc_string(json_ipv4_prefix.service, &services).unwrap());
                 })
-                .or_insert(AwsIPv4Prefix {
-                    prefix: json_ipv4_prefix.ip_prefix,
+                .or_insert(AwsIpPrefix {
+                    prefix: IpNetwork::V4(json_ipv4_prefix.ip_prefix),
                     region: get_rc_string(json_ipv4_prefix.region, &regions).unwrap(),
                     network_border_group: get_rc_string(
                         json_ipv4_prefix.network_border_group,
@@ -123,19 +125,18 @@ impl AwsIpRanges {
                 });
         }
 
-        let mut ipv6_prefixes: BTreeMap<Ipv6Network, AwsIPv6Prefix> = BTreeMap::new();
         for json_ipv6_prefix in &json_ip_ranges.ipv6_prefixes {
-            ipv6_prefixes
-                .entry(json_ipv6_prefix.ipv6_prefix)
-                .and_modify(|ipv6_prefix| {
+            prefixes
+                .entry(IpNetwork::V6(json_ipv6_prefix.ipv6_prefix))
+                .and_modify(|prefix| {
                     // Verify IP prefix invariants
                     // An IP prefix should always be assigned to a single region and network border group
                     assert_eq!(
-                        ipv6_prefix.region,
+                        prefix.region,
                         get_rc_string(json_ipv6_prefix.region, &regions).unwrap()
                     );
                     assert_eq!(
-                        ipv6_prefix.network_border_group,
+                        prefix.network_border_group,
                         get_rc_string(
                             json_ipv6_prefix.network_border_group,
                             &network_border_groups
@@ -143,12 +144,12 @@ impl AwsIpRanges {
                         .unwrap()
                     );
                     // Duplicate IP prefix entries are used to indicate multiple AWS services use a prefix
-                    ipv6_prefix
+                    prefix
                         .services
                         .insert(get_rc_string(json_ipv6_prefix.service, &services).unwrap());
                 })
-                .or_insert(AwsIPv6Prefix {
-                    prefix: json_ipv6_prefix.ipv6_prefix,
+                .or_insert(AwsIpPrefix {
+                    prefix: IpNetwork::V6(json_ipv6_prefix.ipv6_prefix),
                     region: get_rc_string(json_ipv6_prefix.region, &regions).unwrap(),
                     network_border_group: get_rc_string(
                         json_ipv6_prefix.network_border_group,
@@ -161,15 +162,14 @@ impl AwsIpRanges {
                 });
         }
 
-        AwsIpRanges {
+        Ok(AwsIpRanges {
             sync_token,
             create_date,
             regions,
             network_border_groups,
             services,
-            ipv4_prefixes,
-            ipv6_prefixes,
-        }
+            prefixes,
+        })
     }
 }
 
@@ -183,14 +183,60 @@ fn get_rc_string(value: &str, set: &HashSet<Rc<String>>) -> Option<Rc<String>> {
 }
 
 // -------------------------------------------------------------------------------------
+// AWS IP Ranges Error(s)
+// -------------------------------------------------------------------------------------
+
+pub type AwsIpRangesError = Box<dyn std::error::Error + Send + Sync + 'static>;
+pub type AwsIpRangesResult<T> = Result<T, AwsIpRangesError>;
+
+// -------------------------------------------------------------------------------------
 // Low-Level API
 // -------------------------------------------------------------------------------------
 
-pub fn get_json_from_url() -> String {
-    reqwest::blocking::get("https://ip-ranges.amazonaws.com/ip-ranges.json")
-        .expect("Error getting https://ip-ranges.amazonaws.com/ip-ranges.json")
-        .text()
-        .expect("Error downloading JSON")
+pub fn get_json() -> AwsIpRangesResult<String> {
+    if let Ok(_) = fs::canonicalize(AWS_IP_RANGES_FILE_PATH) {
+        // Cache file exists
+        let elapsed = fs::metadata(AWS_IP_RANGES_FILE_PATH)?
+            .modified()?
+            .elapsed()?;
+        if elapsed.as_secs() <= CACHE_REFRESH_TIME {
+            println!("IP ranges cache is fresh; use cache");
+            get_json_from_file()
+        } else {
+            println!("IP ranges cache is stale; refresh cache");
+            if let Ok(json) = get_json_from_url() {
+                println!("Successfully retrieve fresh IP Ranges JSON; update cache file");
+                cache_json_to_file(&json)?;
+                Ok(json)
+            } else {
+                println!("Unable to retrieve fresh IP Ranges JSON data; use stale file cache");
+                get_json_from_file()
+            }
+        }
+    } else {
+        // Cache file does not exist
+        println!("Cache file does not exist; get JSON from URL and cache the result");
+        match get_json_from_url() {
+            Ok(json) => {
+                cache_json_to_file(&json)?;
+                Ok(json)
+            }
+            Err(error) => Err(error),
+        }
+    }
+}
+
+fn cache_json_to_file(json: &str) -> AwsIpRangesResult<()> {
+    Ok(fs::write(AWS_IP_RANGES_FILE_PATH, json)?)
+}
+
+fn get_json_from_file() -> AwsIpRangesResult<String> {
+    Ok(fs::read_to_string(AWS_IP_RANGES_FILE_PATH)?)
+}
+
+fn get_json_from_url() -> AwsIpRangesResult<String> {
+    let response = reqwest::blocking::get(AWS_IP_RANGES_URL)?;
+    Ok(response.text()?)
 }
 
 pub fn parse_json<'j>(json: &'j str) -> JsonIpRanges<'j> {
