@@ -47,7 +47,7 @@ pub struct AwsIpRanges {
     pub prefixes: BTreeMap<IpNetwork, AwsIpPrefix>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AwsIpPrefix {
     pub prefix: IpNetwork,
     pub region: Rc<String>,
@@ -186,6 +186,143 @@ impl AwsIpRanges {
             services,
             prefixes,
         })
+    }
+
+    pub fn filter(&self, filter: &Filter) -> AwsIpRanges {
+        AwsIpRanges {
+            sync_token: self.sync_token.clone(),
+            create_date: self.create_date,
+            regions: self.regions.clone(),
+            network_border_groups: self.network_border_groups.clone(),
+            services: self.services.clone(),
+            prefixes: self
+                .prefixes
+                .values()
+                .filter(|aws_ip_prefix| filter.include_prefix(*aws_ip_prefix))
+                .map(|aws_ip_prefix| (aws_ip_prefix.prefix, aws_ip_prefix.clone()))
+                .collect(),
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------
+// Filtering
+// -------------------------------------------------------------------------------------
+
+#[derive(Debug, Default)]
+pub struct Filter {
+    // Only include IPv4 or IPv6 AWS IP Prefixes.
+    pub prefix_type: Option<PrefixType>,
+
+    // Only include AWS IP Prefixes that contain these prefixes.
+    pub prefixes: Option<HashSet<IpNetwork>>,
+
+    // Only include AWS IP Prefixes from these AWS regions.
+    pub regions: Option<HashSet<Rc<String>>>,
+
+    // Only include AWS IP Prefixes from these network border groups.
+    pub network_border_groups: Option<HashSet<Rc<String>>>,
+
+    // Only include AWS IP Prefixes used by these services.
+    pub services: Option<HashSet<Rc<String>>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PrefixType {
+    IPv4,
+    IPv6,
+}
+
+impl PrefixType {
+    pub fn is_ipv4(&self) -> bool {
+        match self {
+            PrefixType::IPv4 => true,
+            PrefixType::IPv6 => false,
+        }
+    }
+
+    pub fn is_ipv6(&self) -> bool {
+        match self {
+            PrefixType::IPv4 => false,
+            PrefixType::IPv6 => true,
+        }
+    }
+}
+
+impl Filter {
+    fn match_prefix_type(&self, aws_ip_prefix: &AwsIpPrefix) -> bool {
+        if let Some(prefix_type) = self.prefix_type {
+            if prefix_type.is_ipv4() && aws_ip_prefix.prefix.is_ipv4() {
+                true
+            } else if prefix_type.is_ipv6() && aws_ip_prefix.prefix.is_ipv6() {
+                true
+            } else {
+                false
+            }
+        } else {
+            // No prefix type filter
+            true
+        }
+    }
+
+    fn contains_prefixes(&self, aws_ip_prefix: &AwsIpPrefix) -> bool {
+        if let Some(filter_prefixes) = &self.prefixes {
+            filter_prefixes.iter().any(|filter_prefix| {
+                match (aws_ip_prefix.prefix, filter_prefix) {
+                    (IpNetwork::V4(aws_prefix), IpNetwork::V4(filter_prefix)) => {
+                        aws_prefix.is_supernet_of(*filter_prefix)
+                    }
+                    (IpNetwork::V6(aws_prefix), IpNetwork::V6(filter_prefix)) => {
+                        aws_prefix.is_supernet_of(*filter_prefix)
+                    }
+                    _ => false,
+                }
+            })
+        } else {
+            // No filter prefixes
+            true
+        }
+    }
+
+    fn match_regions(&self, aws_ip_prefix: &AwsIpPrefix) -> bool {
+        if let Some(filter_regions) = &self.regions {
+            filter_regions.contains(&aws_ip_prefix.region)
+        } else {
+            // No regions filter
+            true
+        }
+    }
+
+    fn match_network_border_groups(&self, aws_ip_prefix: &AwsIpPrefix) -> bool {
+        if let Some(filter_network_border_groups) = &self.network_border_groups {
+            filter_network_border_groups.contains(&aws_ip_prefix.network_border_group)
+        } else {
+            // No network broder groups filter
+            true
+        }
+    }
+
+    fn match_services(&self, aws_ip_prefix: &AwsIpPrefix) -> bool {
+        if let Some(filter_services) = &self.services {
+            filter_services
+                .intersection(&aws_ip_prefix.services)
+                .next()
+                .is_some()
+        } else {
+            // No services filter
+            true
+        }
+    }
+
+    pub fn include_prefix(&self, prefix: &AwsIpPrefix) -> bool {
+        let filters = [
+            Filter::match_prefix_type,
+            Filter::contains_prefixes,
+            Filter::match_regions,
+            Filter::match_network_border_groups,
+            Filter::match_services,
+        ];
+        filters.iter().all(|filter| filter(self, prefix))
     }
 }
 

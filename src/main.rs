@@ -1,5 +1,6 @@
 use clap::Parser;
-use std::path::PathBuf;
+use ipnetwork::IpNetwork;
+use std::{collections::HashSet, path::PathBuf, rc::Rc};
 
 // ------------------------------------------------------------------------------------------------
 // Command Line Interface (CLI) Arguments
@@ -74,5 +75,28 @@ fn main() -> awsipranges::AwsIpRangesResult<()> {
     );
     println!("");
     println!("Services {:?}", aws_ip_ranges.services);
+    println!("");
+
+    let mut regions: HashSet<Rc<String>> = HashSet::new();
+    regions.insert(Rc::new("us-east-2".to_string()));
+
+    let mut services: HashSet<Rc<String>> = HashSet::new();
+    services.insert(Rc::new("S3".to_string()));
+
+    let mut filter_prefixes: HashSet<IpNetwork> = HashSet::new();
+    filter_prefixes.insert("52.219.141.73/32".parse().unwrap());
+    filter_prefixes.insert("52.219.142.0/24".parse().unwrap());
+
+    let filter = awsipranges::Filter {
+        prefixes: Some(filter_prefixes),
+        regions: Some(regions),
+        services: Some(services),
+        ..awsipranges::Filter::default()
+    };
+
+    let filtered_prefixes = aws_ip_ranges.filter(&filter);
+    for (_, prefix) in &filtered_prefixes.prefixes {
+        println!("{:?}", prefix);
+    }
     Ok(())
 }
