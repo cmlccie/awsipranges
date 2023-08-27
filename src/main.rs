@@ -57,7 +57,7 @@ fn main() -> awsipranges::AwsIpRangesResult<()> {
     println!("  Network Border Groups: {:?}", args.network_border_groups);
     println!("  Services: {:?}", args.services);
 
-    let aws_ip_ranges = awsipranges::AwsIpRanges::new()?;
+    let aws_ip_ranges = awsipranges::get_ranges()?;
 
     println!("Number of Prefixes: {}", aws_ip_ranges.prefixes.len());
     println!("");

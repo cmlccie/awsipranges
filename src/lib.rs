@@ -32,10 +32,145 @@ lazy_static! {
 }
 
 // -------------------------------------------------------------------------------------
+// Primary Interface
+// -------------------------------------------------------------------------------------
+
+pub fn get_ranges() -> AwsIpRangesResult<Box<AwsIpRanges>> {
+    let json = get_json()?;
+    let json_ip_ranges = parse_json(&json);
+
+    let mut aws_ip_ranges = Box::new(AwsIpRanges::default());
+
+    aws_ip_ranges.sync_token = json_ip_ranges.sync_token.to_string();
+    aws_ip_ranges.create_date = json_ip_ranges.create_date;
+
+    aws_ip_ranges.regions = json_ip_ranges
+        .prefixes
+        .iter()
+        .map(|prefix| prefix.region)
+        .chain(
+            json_ip_ranges
+                .ipv6_prefixes
+                .iter()
+                .map(|ipv6_prefix| ipv6_prefix.region),
+        )
+        .map(|region| Rc::new(region.to_string()))
+        .collect();
+
+    aws_ip_ranges.network_border_groups = json_ip_ranges
+        .prefixes
+        .iter()
+        .map(|prefix| prefix.network_border_group)
+        .chain(
+            json_ip_ranges
+                .ipv6_prefixes
+                .iter()
+                .map(|ipv6_prefix| ipv6_prefix.network_border_group),
+        )
+        .map(|network_border_group| Rc::new(network_border_group.to_string()))
+        .collect();
+
+    aws_ip_ranges.services = json_ip_ranges
+        .prefixes
+        .iter()
+        .map(|prefix| prefix.service)
+        .chain(
+            json_ip_ranges
+                .ipv6_prefixes
+                .iter()
+                .map(|ipv6_prefix| ipv6_prefix.service),
+        )
+        .map(|service| Rc::new(service.to_string()))
+        .collect();
+
+    for json_ipv4_prefix in &json_ip_ranges.prefixes {
+        aws_ip_ranges
+            .prefixes
+            .entry(IpNetwork::V4(json_ipv4_prefix.ip_prefix))
+            .and_modify(|prefix| {
+                // Verify IP prefix invariants
+                // An IP prefix should always be assigned to a single region and network border group
+                assert_eq!(
+                    prefix.region,
+                    get_rc_string(json_ipv4_prefix.region, &aws_ip_ranges.regions).unwrap()
+                );
+                assert_eq!(
+                    prefix.network_border_group,
+                    get_rc_string(
+                        json_ipv4_prefix.network_border_group,
+                        &aws_ip_ranges.network_border_groups
+                    )
+                    .unwrap()
+                );
+                // Duplicate IP prefix entries are used to indicate multiple AWS services use a prefix
+                prefix.services.insert(
+                    get_rc_string(json_ipv4_prefix.service, &aws_ip_ranges.services).unwrap(),
+                );
+            })
+            .or_insert(AwsIpPrefix {
+                prefix: IpNetwork::V4(json_ipv4_prefix.ip_prefix),
+                region: get_rc_string(json_ipv4_prefix.region, &aws_ip_ranges.regions).unwrap(),
+                network_border_group: get_rc_string(
+                    json_ipv4_prefix.network_border_group,
+                    &aws_ip_ranges.network_border_groups,
+                )
+                .unwrap(),
+                services: HashSet::from([get_rc_string(
+                    json_ipv4_prefix.service,
+                    &aws_ip_ranges.services,
+                )
+                .unwrap()]),
+            });
+    }
+
+    for json_ipv6_prefix in &json_ip_ranges.ipv6_prefixes {
+        aws_ip_ranges
+            .prefixes
+            .entry(IpNetwork::V6(json_ipv6_prefix.ipv6_prefix))
+            .and_modify(|prefix| {
+                // Verify IP prefix invariants
+                // An IP prefix should always be assigned to a single region and network border group
+                assert_eq!(
+                    prefix.region,
+                    get_rc_string(json_ipv6_prefix.region, &aws_ip_ranges.regions).unwrap()
+                );
+                assert_eq!(
+                    prefix.network_border_group,
+                    get_rc_string(
+                        json_ipv6_prefix.network_border_group,
+                        &aws_ip_ranges.network_border_groups
+                    )
+                    .unwrap()
+                );
+                // Duplicate IP prefix entries are used to indicate multiple AWS services use a prefix
+                prefix.services.insert(
+                    get_rc_string(json_ipv6_prefix.service, &aws_ip_ranges.services).unwrap(),
+                );
+            })
+            .or_insert(AwsIpPrefix {
+                prefix: IpNetwork::V6(json_ipv6_prefix.ipv6_prefix),
+                region: get_rc_string(json_ipv6_prefix.region, &aws_ip_ranges.regions).unwrap(),
+                network_border_group: get_rc_string(
+                    json_ipv6_prefix.network_border_group,
+                    &aws_ip_ranges.network_border_groups,
+                )
+                .unwrap(),
+                services: HashSet::from([get_rc_string(
+                    json_ipv6_prefix.service,
+                    &aws_ip_ranges.services,
+                )
+                .unwrap()]),
+            });
+    }
+
+    Ok(aws_ip_ranges)
+}
+
+// -------------------------------------------------------------------------------------
 // AWS IP Ranges
 // -------------------------------------------------------------------------------------
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AwsIpRanges {
     pub sync_token: String,
     pub create_date: DateTime<Utc>,
@@ -56,138 +191,6 @@ pub struct AwsIpPrefix {
 }
 
 impl AwsIpRanges {
-    pub fn new() -> AwsIpRangesResult<AwsIpRanges> {
-        let json = get_json()?;
-        let json_ip_ranges = parse_json(&json);
-
-        let sync_token = json_ip_ranges.sync_token.to_string();
-        let create_date = json_ip_ranges.create_date;
-
-        let regions: HashSet<Rc<String>> = json_ip_ranges
-            .prefixes
-            .iter()
-            .map(|prefix| prefix.region)
-            .chain(
-                json_ip_ranges
-                    .ipv6_prefixes
-                    .iter()
-                    .map(|ipv6_prefix| ipv6_prefix.region),
-            )
-            .map(|region| Rc::new(region.to_string()))
-            .collect();
-
-        let network_border_groups: HashSet<Rc<String>> = json_ip_ranges
-            .prefixes
-            .iter()
-            .map(|prefix| prefix.network_border_group)
-            .chain(
-                json_ip_ranges
-                    .ipv6_prefixes
-                    .iter()
-                    .map(|ipv6_prefix| ipv6_prefix.network_border_group),
-            )
-            .map(|network_border_group| Rc::new(network_border_group.to_string()))
-            .collect();
-
-        let services: HashSet<Rc<String>> = json_ip_ranges
-            .prefixes
-            .iter()
-            .map(|prefix| prefix.service)
-            .chain(
-                json_ip_ranges
-                    .ipv6_prefixes
-                    .iter()
-                    .map(|ipv6_prefix| ipv6_prefix.service),
-            )
-            .map(|service| Rc::new(service.to_string()))
-            .collect();
-
-        let mut prefixes: BTreeMap<IpNetwork, AwsIpPrefix> = BTreeMap::new();
-
-        for json_ipv4_prefix in &json_ip_ranges.prefixes {
-            prefixes
-                .entry(IpNetwork::V4(json_ipv4_prefix.ip_prefix))
-                .and_modify(|prefix| {
-                    // Verify IP prefix invariants
-                    // An IP prefix should always be assigned to a single region and network border group
-                    assert_eq!(
-                        prefix.region,
-                        get_rc_string(json_ipv4_prefix.region, &regions).unwrap()
-                    );
-                    assert_eq!(
-                        prefix.network_border_group,
-                        get_rc_string(
-                            json_ipv4_prefix.network_border_group,
-                            &network_border_groups
-                        )
-                        .unwrap()
-                    );
-                    // Duplicate IP prefix entries are used to indicate multiple AWS services use a prefix
-                    prefix
-                        .services
-                        .insert(get_rc_string(json_ipv4_prefix.service, &services).unwrap());
-                })
-                .or_insert(AwsIpPrefix {
-                    prefix: IpNetwork::V4(json_ipv4_prefix.ip_prefix),
-                    region: get_rc_string(json_ipv4_prefix.region, &regions).unwrap(),
-                    network_border_group: get_rc_string(
-                        json_ipv4_prefix.network_border_group,
-                        &network_border_groups,
-                    )
-                    .unwrap(),
-                    services: HashSet::from([
-                        get_rc_string(json_ipv4_prefix.service, &services).unwrap()
-                    ]),
-                });
-        }
-
-        for json_ipv6_prefix in &json_ip_ranges.ipv6_prefixes {
-            prefixes
-                .entry(IpNetwork::V6(json_ipv6_prefix.ipv6_prefix))
-                .and_modify(|prefix| {
-                    // Verify IP prefix invariants
-                    // An IP prefix should always be assigned to a single region and network border group
-                    assert_eq!(
-                        prefix.region,
-                        get_rc_string(json_ipv6_prefix.region, &regions).unwrap()
-                    );
-                    assert_eq!(
-                        prefix.network_border_group,
-                        get_rc_string(
-                            json_ipv6_prefix.network_border_group,
-                            &network_border_groups
-                        )
-                        .unwrap()
-                    );
-                    // Duplicate IP prefix entries are used to indicate multiple AWS services use a prefix
-                    prefix
-                        .services
-                        .insert(get_rc_string(json_ipv6_prefix.service, &services).unwrap());
-                })
-                .or_insert(AwsIpPrefix {
-                    prefix: IpNetwork::V6(json_ipv6_prefix.ipv6_prefix),
-                    region: get_rc_string(json_ipv6_prefix.region, &regions).unwrap(),
-                    network_border_group: get_rc_string(
-                        json_ipv6_prefix.network_border_group,
-                        &network_border_groups,
-                    )
-                    .unwrap(),
-                    services: HashSet::from([
-                        get_rc_string(json_ipv6_prefix.service, &services).unwrap()
-                    ]),
-                });
-        }
-
-        Ok(AwsIpRanges {
-            sync_token,
-            create_date,
-            regions,
-            network_border_groups,
-            services,
-            prefixes,
-        })
-    }
-
     pub fn filter(&self, filter: &Filter) -> AwsIpRanges {
         AwsIpRanges {
             sync_token: self.sync_token.clone(),
