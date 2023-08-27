@@ -191,20 +191,10 @@ pub struct AwsIpPrefix {
 }
 
 impl AwsIpRanges {
-    pub fn filter(&self, filter: &Filter) -> AwsIpRanges {
-        AwsIpRanges {
-            sync_token: self.sync_token.clone(),
-            create_date: self.create_date,
-            regions: self.regions.clone(),
-            network_border_groups: self.network_border_groups.clone(),
-            services: self.services.clone(),
-            prefixes: self
-                .prefixes
-                .values()
-                .filter(|aws_ip_prefix| filter.include_prefix(*aws_ip_prefix))
-                .map(|aws_ip_prefix| (aws_ip_prefix.prefix, aws_ip_prefix.clone()))
-                .collect(),
-        }
+    pub fn filter<'a>(&'a self, filter: &'a Filter) -> impl Iterator<Item = &'a AwsIpPrefix> {
+        self.prefixes
+            .values()
+            .filter(move |aws_ip_prefix| filter.include_prefix(*aws_ip_prefix))
     }
 }
 

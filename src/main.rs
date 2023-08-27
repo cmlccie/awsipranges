@@ -94,9 +94,9 @@ fn main() -> awsipranges::AwsIpRangesResult<()> {
         ..awsipranges::Filter::default()
     };
 
-    let filtered_prefixes = aws_ip_ranges.filter(&filter);
-    for (_, prefix) in &filtered_prefixes.prefixes {
+    for prefix in aws_ip_ranges.filter(&filter) {
         println!("{:?}", prefix);
     }
+
     Ok(())
 }
