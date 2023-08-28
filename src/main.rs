@@ -1,4 +1,8 @@
+use awsipranges::AwsIpPrefix;
 use clap::Parser;
+use comfy_table::modifiers::UTF8_ROUND_CORNERS;
+use comfy_table::presets::UTF8_FULL;
+use comfy_table::*;
 use ipnetwork::IpNetwork;
 use std::{collections::HashSet, path::PathBuf, rc::Rc};
 
@@ -19,15 +23,15 @@ struct Args {
 
     /// Include prefixes from one or more AWS Region(s)
     #[arg(short = 'r', long = "region")]
-    regions: Vec<String>,
+    regions: Option<Vec<String>>,
 
     /// Include prefixes in one or more Network Border Group(s)
     #[arg(short = 'g', long = "network-border-group")]
-    network_border_groups: Vec<String>,
+    network_border_groups: Option<Vec<String>>,
 
     /// Include prefixes used by one or more AWS Services
     #[arg(short = 's', long = "service")]
-    services: Vec<String>,
+    services: Option<Vec<String>>,
 
     /// Output matching prefixes as a list of (RFC4632) CIDR blocks
     #[arg(short = 'C', long)]
@@ -45,58 +49,123 @@ struct Args {
     #[arg(long = "csv")]
     csv_file: Option<PathBuf>,
 
-    /// Find IP prefixes containing this IP host or network
-    ip_prefix: Option<String>,
+    /// Find IP prefixes containing these IP hosts or networks
+    prefixes: Option<Vec<String>>,
 }
+
+// ------------------------------------------------------------------------------------------------
+// Main CLI Function
+// ------------------------------------------------------------------------------------------------
 
 fn main() -> awsipranges::AwsIpRangesResult<()> {
     let args = Args::parse();
 
-    println!("Arguments:");
-    println!("  Regions: {:?}", args.regions);
-    println!("  Network Border Groups: {:?}", args.network_border_groups);
-    println!("  Services: {:?}", args.services);
-
+    // Get AWS IP Ranges
     let aws_ip_ranges = awsipranges::get_ranges()?;
 
-    println!("Number of Prefixes: {}", aws_ip_ranges.prefixes.len());
-    println!("");
+    // Build Filters
+    let prefix_type = match (args.ipv4, args.ipv6) {
+        (true, false) => Some(awsipranges::PrefixType::IPv4),
+        (false, true) => Some(awsipranges::PrefixType::IPv6),
+        _ => None,
+    };
 
-    println!("sync_token:    {}", aws_ip_ranges.sync_token);
-    println!("creation_date: {}", aws_ip_ranges.create_date);
-    println!("");
-    println!("First {:?}", aws_ip_ranges.prefixes.iter().next().unwrap());
-    println!("");
-    println!("Regions {:?}", aws_ip_ranges.regions);
-    println!("");
-    println!(
-        "Network Border Groups {:?}",
-        aws_ip_ranges.network_border_groups
-    );
-    println!("");
-    println!("Services {:?}", aws_ip_ranges.services);
-    println!("");
+    let prefixes = match args.prefixes {
+        Some(prefixes) => Some(vec_to_hashset_ipnetwork(&prefixes)?),
+        None => None,
+    };
 
-    let mut regions: HashSet<Rc<String>> = HashSet::new();
-    regions.insert(Rc::new("us-east-2".to_string()));
+    let regions = args
+        .regions
+        .map(|regions| vec_to_hashset_rc_string(&regions));
 
-    let mut services: HashSet<Rc<String>> = HashSet::new();
-    services.insert(Rc::new("S3".to_string()));
+    let network_border_groups = args
+        .network_border_groups
+        .map(|network_border_groups| vec_to_hashset_rc_string(&network_border_groups));
 
-    let mut filter_prefixes: HashSet<IpNetwork> = HashSet::new();
-    filter_prefixes.insert("52.219.141.73/32".parse().unwrap());
-    filter_prefixes.insert("52.219.142.0/24".parse().unwrap());
+    let services = args
+        .services
+        .map(|services| vec_to_hashset_rc_string(&services));
 
     let filter = awsipranges::Filter {
-        prefixes: Some(filter_prefixes),
-        regions: Some(regions),
-        services: Some(services),
+        prefix_type,
+        prefixes,
+        regions,
+        network_border_groups,
+        services,
         ..awsipranges::Filter::default()
     };
 
-    for prefix in aws_ip_ranges.filter(&filter) {
-        println!("{:?}", prefix);
-    }
+    display_prefix_table(aws_ip_ranges.filter(&filter));
 
     Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// Helper Functions
+// ----------------------------------------------------------------------------
+
+fn vec_to_hashset_ipnetwork(v: &Vec<String>) -> awsipranges::AwsIpRangesResult<HashSet<IpNetwork>> {
+    let mut set = HashSet::new();
+    for s in v {
+        set.insert(s.parse()?);
+    }
+    Ok(set)
+}
+
+fn vec_to_hashset_rc_string(v: &Vec<String>) -> HashSet<Rc<String>> {
+    v.iter().map(|s| Rc::new(s.clone())).collect()
+}
+
+// ------------------------------------------------------------------------------------------------
+// CLI Display Functions
+// ------------------------------------------------------------------------------------------------
+
+fn display_prefix_table<'a, T>(prefixes: T)
+where
+    T: Iterator<Item = &'a AwsIpPrefix>,
+{
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL)
+        .apply_modifier(UTF8_ROUND_CORNERS)
+        .set_content_arrangement(ContentArrangement::Dynamic);
+
+    table.set_header(vec![
+        Cell::new("IP Prefix")
+            .add_attribute(Attribute::Bold)
+            .fg(Color::Green),
+        Cell::new("Region")
+            .add_attribute(Attribute::Bold)
+            .fg(Color::Green),
+        Cell::new("Network Border Group")
+            .add_attribute(Attribute::Bold)
+            .fg(Color::Green),
+        Cell::new("Services")
+            .add_attribute(Attribute::Bold)
+            .fg(Color::Green),
+    ]);
+
+    for prefix in prefixes {
+        let mut sorted_services = prefix
+            .services
+            .iter()
+            .map(|service| service.to_string())
+            .collect::<Vec<String>>();
+        sorted_services.sort();
+        let services = sorted_services.join(", ");
+
+        table.add_row(vec![
+            Cell::new(prefix.prefix).add_attribute(Attribute::Bold),
+            Cell::new(&prefix.region),
+            Cell::new(&prefix.network_border_group),
+            Cell::new(services),
+        ]);
+    }
+
+    // Right-align the IP Prefix column
+    let column = table.column_mut(0).expect("The first column exists");
+    column.set_cell_alignment(CellAlignment::Right);
+
+    println!("{table}");
 }
