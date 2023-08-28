@@ -49,6 +49,10 @@ struct Args {
     #[arg(long = "csv")]
     csv_file: Option<PathBuf>,
 
+    /// Increase the logging verbosity
+    #[command(flatten)]
+    verbosity: clap_verbosity_flag::Verbosity,
+
     /// Find IP prefixes containing these IP hosts or networks
     prefixes: Option<Vec<String>>,
 }
@@ -58,7 +62,15 @@ struct Args {
 // ------------------------------------------------------------------------------------------------
 
 fn main() -> awsipranges::AwsIpRangesResult<()> {
+    // Parse CLI arguments
     let args = Args::parse();
+
+    // Configure logging
+    stderrlog::new()
+        .module(module_path!())
+        .verbosity(args.verbosity.log_level_filter())
+        .init()
+        .unwrap();
 
     // Get AWS IP Ranges
     let aws_ip_ranges = awsipranges::get_ranges()?;

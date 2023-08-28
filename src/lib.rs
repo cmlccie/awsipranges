@@ -3,6 +3,7 @@ extern crate lazy_static;
 use chrono::{DateTime, Utc};
 use config::{Config, Environment};
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
+use log::{debug, info, trace, warn};
 use reqwest;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
@@ -16,19 +17,23 @@ use std::rc::Rc;
 // -------------------------------------------------------------------------------------
 
 lazy_static! {
-    // static ref AWS_IP_RANGES_CONFIG_BUILDER: ConfigBuilder<DefaultState> =
-   static ref AWS_IP_RANGES_CONFIG: Config = {
+    static ref AWS_IP_RANGES_CONFIG: Config = {
         let home_dir = dirs::home_dir().unwrap();
-        let cache_file: PathBuf = [&home_dir.to_str().unwrap(), ".aws", "ip-ranges.json"].iter().collect();
+        let cache_file: PathBuf = [&home_dir.to_str().unwrap(), ".aws", "ip-ranges.json"]
+            .iter()
+            .collect();
 
         let config_builder = Config::builder()
-            .set_default("url", "https://ip-ranges.amazonaws.com/ip-ranges.json").unwrap()
-            .set_default("cache_file", cache_file.to_str()).unwrap()
-            .set_default("cache_time", 24 * 60 * 60).unwrap()
+            .set_default("url", "https://ip-ranges.amazonaws.com/ip-ranges.json")
+            .unwrap()
+            .set_default("cache_file", cache_file.to_str())
+            .unwrap()
+            .set_default("cache_time", 24 * 60 * 60)
+            .unwrap()
             .add_source(Environment::with_prefix("AWS_IP_RANGES"));
 
         config_builder.build().unwrap()
-   };
+    };
 }
 
 // -------------------------------------------------------------------------------------
@@ -253,7 +258,7 @@ impl Filter {
                 false
             }
         } else {
-            // No prefix type filter
+            trace!("No `prefix_type` filter");
             true
         }
     }
@@ -272,7 +277,7 @@ impl Filter {
                 }
             })
         } else {
-            // No filter prefixes
+            trace!("No `prefixes` filter");
             true
         }
     }
@@ -281,7 +286,7 @@ impl Filter {
         if let Some(filter_regions) = &self.regions {
             filter_regions.contains(&aws_ip_prefix.region)
         } else {
-            // No regions filter
+            trace!("No `regions` filter");
             true
         }
     }
@@ -290,7 +295,7 @@ impl Filter {
         if let Some(filter_network_border_groups) = &self.network_border_groups {
             filter_network_border_groups.contains(&aws_ip_prefix.network_border_group)
         } else {
-            // No network broder groups filter
+            trace!("No `network_border_groups` filter");
             true
         }
     }
@@ -302,7 +307,7 @@ impl Filter {
                 .next()
                 .is_some()
         } else {
-            // No services filter
+            trace!("No `services` filter");
             true
         }
     }
@@ -343,29 +348,28 @@ pub fn get_json() -> AwsIpRangesResult<String> {
     let cache_path: PathBuf = AWS_IP_RANGES_CONFIG.get_string("cache_file")?.into();
     let cache_time = AWS_IP_RANGES_CONFIG.get_int("cache_time")?.try_into()?;
 
-    println!("Home Directory: {:?}", dirs::home_dir());
-    println!("Cache Path: {:?}", &cache_path);
+    info!("Cache file path {:?}", &cache_path);
+    info!("Cache time {cache_time} seconds");
 
     if let Ok(_) = fs::canonicalize(&cache_path) {
-        // Cache file exists
+        info!("Cache file exists");
         let elapsed = fs::metadata(&cache_path)?.modified()?.elapsed()?;
         if elapsed.as_secs() <= cache_time {
-            println!("IP ranges cache is fresh; use cache");
+            info!("IP ranges cache is fresh; use cache");
             get_json_from_file()
         } else {
-            println!("IP ranges cache is stale; refresh cache");
+            info!("IP ranges cache is stale; refresh cache");
             if let Ok(json) = get_json_from_url() {
-                println!("Successfully retrieve fresh IP Ranges JSON; update cache file");
+                info!("Successfully retrieve fresh IP Ranges JSON; update cache file");
                 cache_json_to_file(&json)?;
                 Ok(json)
             } else {
-                println!("Unable to retrieve fresh IP Ranges JSON data; use stale file cache");
+                warn!("Unable to retrieve fresh IP Ranges JSON data; use stale file cache");
                 get_json_from_file()
             }
         }
     } else {
-        // Cache file does not exist
-        println!("Cache file does not exist; get JSON from URL and attempt to cache the result");
+        info!("Cache file does not exist; get JSON from URL and attempt to cache the result");
         match get_json_from_url() {
             Ok(json) => {
                 let _ = cache_json_to_file(&json);
