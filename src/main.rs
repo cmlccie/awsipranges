@@ -4,7 +4,7 @@ use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::*;
 use ipnetwork::IpNetwork;
-use std::{collections::HashSet, path::PathBuf, rc::Rc};
+use std::{collections::BTreeSet, path::PathBuf, rc::Rc};
 
 // ------------------------------------------------------------------------------------------------
 // Command Line Interface (CLI) Arguments
@@ -61,7 +61,7 @@ struct Args {
 // Main CLI Function
 // ------------------------------------------------------------------------------------------------
 
-fn main() -> awsipranges::AwsIpRangesResult<()> {
+fn main() -> awsipranges::Result<()> {
     // Parse CLI arguments
     let args = Args::parse();
 
@@ -83,21 +83,19 @@ fn main() -> awsipranges::AwsIpRangesResult<()> {
     };
 
     let prefixes = match args.prefixes {
-        Some(prefixes) => Some(vec_to_hashset_ipnetwork(&prefixes)?),
+        Some(prefixes) => Some(vec_to_set_ipnetwork(&prefixes)?),
         None => None,
     };
 
-    let regions = args
-        .regions
-        .map(|regions| vec_to_hashset_rc_string(&regions));
+    let regions = args.regions.map(|regions| vec_to_set_rc_string(&regions));
 
     let network_border_groups = args
         .network_border_groups
-        .map(|network_border_groups| vec_to_hashset_rc_string(&network_border_groups));
+        .map(|network_border_groups| vec_to_set_rc_string(&network_border_groups));
 
     let services = args
         .services
-        .map(|services| vec_to_hashset_rc_string(&services));
+        .map(|services| vec_to_set_rc_string(&services));
 
     let filter = awsipranges::Filter {
         prefix_type,
@@ -117,16 +115,16 @@ fn main() -> awsipranges::AwsIpRangesResult<()> {
 // Helper Functions
 // ----------------------------------------------------------------------------
 
-fn vec_to_hashset_ipnetwork(v: &Vec<String>) -> awsipranges::AwsIpRangesResult<HashSet<IpNetwork>> {
-    let mut set = HashSet::new();
+fn vec_to_set_ipnetwork(v: &Vec<String>) -> awsipranges::Result<BTreeSet<IpNetwork>> {
+    let mut set = BTreeSet::new();
     for s in v {
         set.insert(s.parse()?);
     }
     Ok(set)
 }
 
-fn vec_to_hashset_rc_string(v: &Vec<String>) -> HashSet<Rc<String>> {
-    v.iter().map(|s| Rc::new(s.clone())).collect()
+fn vec_to_set_rc_string(v: &Vec<String>) -> BTreeSet<Rc<str>> {
+    v.iter().map(|s| Rc::from(s.as_str())).collect()
 }
 
 // ------------------------------------------------------------------------------------------------
