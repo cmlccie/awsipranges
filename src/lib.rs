@@ -9,12 +9,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::From;
 use std::fs;
+use std::ops::Bound::Included;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-// -------------------------------------------------------------------------------------
-// Configuration
-// -------------------------------------------------------------------------------------
+/*-------------------------------------------------------------------------------------------------
+  Configuration
+-------------------------------------------------------------------------------------------------*/
 
 lazy_static! {
     static ref AWS_IP_RANGES_CONFIG: Config = {
@@ -36,9 +37,9 @@ lazy_static! {
     };
 }
 
-// -------------------------------------------------------------------------------------
-// Primary Interface
-// -------------------------------------------------------------------------------------
+/*-------------------------------------------------------------------------------------------------
+  Primary Interface
+-------------------------------------------------------------------------------------------------*/
 
 pub fn get_ranges() -> Result<Box<AwsIpRanges>> {
     let json = get_json()?;
@@ -173,9 +174,9 @@ pub fn get_ranges() -> Result<Box<AwsIpRanges>> {
     Ok(aws_ip_ranges)
 }
 
-// -------------------------------------------------------------------------------------
-// AWS IP Ranges
-// -------------------------------------------------------------------------------------
+/*-------------------------------------------------------------------------------------------------
+  AWS IP Ranges
+-------------------------------------------------------------------------------------------------*/
 
 #[derive(Debug, Default)]
 pub struct AwsIpRanges {
@@ -271,31 +272,19 @@ impl AwsIpRanges {
 
         for prefix in find_prefixes {
             let mut found = false;
-            for prefix_length in 1..=prefix.prefix() {
-                let search_prefix = match prefix {
-                    // The IpNetwork type does not reduce an interface CIDR to a network CIDR
-                    // where all the host bits are set to `0`. However, it does provide a
-                    // .network() method that will perform the reduction, so we have to do the
-                    // reduction manually after adjusting the prefix length.
-                    IpNetwork::V4(ipv4) => IpNetwork::V4(
-                        Ipv4Network::new(ipv4.network(), prefix_length)
-                            .map(|new_ipv4| {
-                                Ipv4Network::new(new_ipv4.network(), prefix_length).unwrap()
-                            })
-                            .unwrap(),
-                    ),
-                    IpNetwork::V6(ipv6) => IpNetwork::V6(
-                        Ipv6Network::new(ipv6.network(), prefix_length)
-                            .map(|new_ipv6| {
-                                Ipv6Network::new(new_ipv6.network(), prefix_length).unwrap()
-                            })
-                            .unwrap(),
-                    ),
-                };
-                let found_prefix = self.prefixes.get(&search_prefix);
-                if let Some(found_prefix) = found_prefix {
+            let lower_bound = match prefix {
+                IpNetwork::V4(_) => new_network_prefix(prefix, 8u8).unwrap(),
+                IpNetwork::V6(_) => new_network_prefix(prefix, 16u8).unwrap(),
+            };
+            let upper_bound = network_prefix(prefix);
+
+            for (network_prefix, aws_ip_prefix) in self
+                .prefixes
+                .range((Included(lower_bound), Included(upper_bound)))
+            {
+                if is_supernet_of(aws_ip_prefix.prefix, *prefix) {
                     found = true;
-                    prefix_map.insert(found_prefix.prefix, found_prefix.clone());
+                    prefix_map.insert(*network_prefix, aws_ip_prefix.clone());
                 }
             }
             if !found {
@@ -307,9 +296,9 @@ impl AwsIpRanges {
     }
 }
 
-// -------------------------------------------------------------------------------------
-// Filtering
-// -------------------------------------------------------------------------------------
+/*--------------------------------------------------------------------------------------
+  Filter
+--------------------------------------------------------------------------------------*/
 
 #[derive(Debug, Default)]
 pub struct Filter {
@@ -369,17 +358,9 @@ impl Filter {
 
     fn contains_prefixes(&self, aws_ip_prefix: &AwsIpPrefix) -> bool {
         if let Some(filter_prefixes) = &self.prefixes {
-            filter_prefixes.iter().any(|filter_prefix| {
-                match (aws_ip_prefix.prefix, filter_prefix) {
-                    (IpNetwork::V4(aws_prefix), IpNetwork::V4(filter_prefix)) => {
-                        aws_prefix.is_supernet_of(*filter_prefix)
-                    }
-                    (IpNetwork::V6(aws_prefix), IpNetwork::V6(filter_prefix)) => {
-                        aws_prefix.is_supernet_of(*filter_prefix)
-                    }
-                    _ => false,
-                }
-            })
+            filter_prefixes
+                .iter()
+                .any(|filter_prefix| is_supernet_of(aws_ip_prefix.prefix, *filter_prefix))
         } else {
             trace!("No `prefixes` filter");
             true
@@ -428,24 +409,78 @@ impl Filter {
     }
 }
 
-// -------------------------------------------------------------------------------------
-// Helper Functions
-// -------------------------------------------------------------------------------------
+/*--------------------------------------------------------------------------------------
+  Helper Functions
+--------------------------------------------------------------------------------------*/
 
 fn get_rc_str_from_set(value: &str, set: &BTreeSet<Rc<str>>) -> Option<Rc<str>> {
     set.get(value).map(|item| Rc::clone(item))
 }
 
-// -------------------------------------------------------------------------------------
-// AWS IP Ranges Error(s)
-// -------------------------------------------------------------------------------------
+/*
+    The IpNetwork type does not reduce (or provide a method to reduce) an
+    interface CIDR prefix to network prefix (where all host bits are set to
+    `0`). It does provide a network() method that will extract the network IP.
+
+    These helper functions extract the network prefix from an IpNetwork and
+    build a new network prefiex from an existing IpNetwork with a specified
+    number of mask bits.
+*/
+
+fn network_prefix(ip_network: &IpNetwork) -> IpNetwork {
+    match ip_network {
+        IpNetwork::V4(ipv4_network) => {
+            IpNetwork::V4(Ipv4Network::new(ipv4_network.network(), ipv4_network.prefix()).unwrap())
+        }
+        IpNetwork::V6(ipv6_network) => {
+            IpNetwork::V6(Ipv6Network::new(ipv6_network.network(), ipv6_network.prefix()).unwrap())
+        }
+    }
+}
+
+fn new_network_prefix(ip_network: &IpNetwork, mask_bits: u8) -> Result<IpNetwork> {
+    let new_prefix = match ip_network {
+        IpNetwork::V4(ipv4_network) => {
+            IpNetwork::V4(Ipv4Network::new(ipv4_network.ip(), mask_bits)?)
+        }
+        IpNetwork::V6(ipv6_network) => {
+            IpNetwork::V6(Ipv6Network::new(ipv6_network.ip(), mask_bits)?)
+        }
+    };
+
+    Ok(network_prefix(&new_prefix))
+}
+
+/*
+    The Ipv4Network and Ipv6Network types implement an is_supernet_of() method;
+    however, the IpNetwork type does not.
+
+    This helper function implements the is_supernet_of() functionality to
+    compare two IpNetwork objects.
+*/
+
+fn is_supernet_of(supernet: IpNetwork, subnet: IpNetwork) -> bool {
+    match (supernet, subnet) {
+        (IpNetwork::V4(ipv4_supernet), IpNetwork::V4(ipv4_subnet)) => {
+            ipv4_supernet.is_supernet_of(ipv4_subnet)
+        }
+        (IpNetwork::V6(ipv6_supernet), IpNetwork::V6(ipv6_subnet)) => {
+            ipv6_supernet.is_supernet_of(ipv6_subnet)
+        }
+        _ => false,
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------
+  Errors and Results
+-------------------------------------------------------------------------------------------------*/
 
 pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T> = std::result::Result<T, Error>;
 
-// -------------------------------------------------------------------------------------
-// Low-Level API
-// -------------------------------------------------------------------------------------
+/*-------------------------------------------------------------------------------------------------
+  Low-Level API
+-------------------------------------------------------------------------------------------------*/
 
 pub fn get_json() -> Result<String> {
     let cache_path: PathBuf = AWS_IP_RANGES_CONFIG.get_string("cache_file")?.into();
@@ -535,9 +570,9 @@ pub struct JsonIpv6Prefix<'j> {
     pub service: &'j str,
 }
 
-// -------------------------------------------------------------------------------------
-// AWS IP Ranges DateTime Format
-// -------------------------------------------------------------------------------------
+/*-------------------------------------------------------------------------------------------------
+  DateTime Format
+-------------------------------------------------------------------------------------------------*/
 
 mod aws_ip_ranges_datetime_format {
     use chrono::{DateTime, TimeZone, Utc};

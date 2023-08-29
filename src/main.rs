@@ -6,9 +6,9 @@ use comfy_table::*;
 use ipnetwork::IpNetwork;
 use std::{collections::BTreeSet, path::PathBuf, rc::Rc};
 
-// ------------------------------------------------------------------------------------------------
-// Command Line Interface (CLI) Arguments
-// ------------------------------------------------------------------------------------------------
+/*-------------------------------------------------------------------------------------------------
+  Command Line Interface (CLI) Arguments
+-------------------------------------------------------------------------------------------------*/
 
 #[derive(Parser, Debug)]
 #[command(author, version, about="Query AWS IP ranges.", long_about = None)]
@@ -33,7 +33,7 @@ struct Args {
     #[arg(short = 's', long = "service")]
     services: Option<Vec<String>>,
 
-    /// Output matching prefixes as a list of (RFC4632) CIDR blocks
+    /// Output matching prefixes as a list of (RFC4632) CIDR prefixes
     #[arg(short = 'C', long)]
     cidr_format: bool,
 
@@ -57,9 +57,9 @@ struct Args {
     prefixes: Option<Vec<String>>,
 }
 
-// ------------------------------------------------------------------------------------------------
-// Main CLI Function
-// ------------------------------------------------------------------------------------------------
+/*-------------------------------------------------------------------------------------------------
+  Main CLI Function
+-------------------------------------------------------------------------------------------------*/
 
 fn main() -> awsipranges::Result<()> {
     // Parse CLI arguments
@@ -112,9 +112,9 @@ fn main() -> awsipranges::Result<()> {
     Ok(())
 }
 
-// ----------------------------------------------------------------------------
-// Helper Functions
-// ----------------------------------------------------------------------------
+/*--------------------------------------------------------------------------------------
+  Helper Functions
+--------------------------------------------------------------------------------------*/
 
 fn vec_to_set_ipnetwork(v: &Vec<String>) -> awsipranges::Result<BTreeSet<IpNetwork>> {
     let mut set = BTreeSet::new();
@@ -128,9 +128,9 @@ fn vec_to_set_rc_string(v: &Vec<String>) -> BTreeSet<Rc<str>> {
     v.iter().map(|s| Rc::from(s.as_str())).collect()
 }
 
-// ------------------------------------------------------------------------------------------------
-// CLI Display Functions
-// ------------------------------------------------------------------------------------------------
+/*-------------------------------------------------------------------------------------------------
+  CLI Display Functions
+-------------------------------------------------------------------------------------------------*/
 
 fn display_prefix_table(aws_ip_ranges: &AwsIpRanges) {
     let mut table = Table::new();
