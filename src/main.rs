@@ -1,4 +1,4 @@
-use awsipranges::AwsIpPrefix;
+use awsipranges::AwsIpRanges;
 use clap::Parser;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
@@ -106,7 +106,8 @@ fn main() -> awsipranges::Result<()> {
         ..awsipranges::Filter::default()
     };
 
-    display_prefix_table(aws_ip_ranges.filter(&filter));
+    let filtered_prefixes = aws_ip_ranges.filter(&filter);
+    display_prefix_table(&filtered_prefixes);
 
     Ok(())
 }
@@ -131,10 +132,7 @@ fn vec_to_set_rc_string(v: &Vec<String>) -> BTreeSet<Rc<str>> {
 // CLI Display Functions
 // ------------------------------------------------------------------------------------------------
 
-fn display_prefix_table<'a, T>(prefixes: T)
-where
-    T: Iterator<Item = &'a AwsIpPrefix>,
-{
+fn display_prefix_table(aws_ip_ranges: &AwsIpRanges) {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
@@ -156,7 +154,7 @@ where
             .fg(Color::Green),
     ]);
 
-    for prefix in prefixes {
+    for prefix in aws_ip_ranges.prefixes.values() {
         let mut sorted_services = prefix
             .services
             .iter()
