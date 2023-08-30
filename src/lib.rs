@@ -198,7 +198,7 @@ pub struct AwsIpPrefix {
     pub services: BTreeSet<Rc<str>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Default)]
 pub struct SearchResults {
     pub aws_ip_ranges: Box<AwsIpRanges>,
     pub prefix_matches: BTreeMap<IpNetwork, BTreeSet<AwsIpPrefix>>,
@@ -248,22 +248,17 @@ impl AwsIpRanges {
         P: Iterator<Item = &'p IpNetwork>,
     {
         let mut search_results = Box::new(SearchResults {
-            aws_ip_ranges: Box::new(AwsIpRanges {
-                sync_token: self.sync_token.clone(),
-                create_date: self.create_date,
-                ..AwsIpRanges::default()
-            }),
+            aws_ip_ranges: Box::new(AwsIpRanges::default()),
             prefix_matches: BTreeMap::new(),
             prefixes_not_found: BTreeSet::new(),
         });
 
+        let mut result_aws_ip_prefixes: BTreeSet<AwsIpPrefix> = BTreeSet::new();
+
         for prefix in values {
             if let Some(aws_ip_prefixes) = self.get(prefix) {
                 aws_ip_prefixes.iter().for_each(|aws_ip_prefix| {
-                    search_results
-                        .aws_ip_ranges
-                        .prefixes
-                        .insert(aws_ip_prefix.prefix, aws_ip_prefix.clone());
+                    result_aws_ip_prefixes.insert(aws_ip_prefix.clone());
                 });
 
                 search_results
@@ -274,6 +269,10 @@ impl AwsIpRanges {
                 search_results.prefixes_not_found.insert(*prefix);
             }
         }
+
+        search_results.aws_ip_ranges = Box::new(AwsIpRanges::from(result_aws_ip_prefixes));
+        search_results.aws_ip_ranges.sync_token = self.sync_token.clone();
+        search_results.aws_ip_ranges.create_date = self.create_date;
 
         search_results
     }
