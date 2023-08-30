@@ -178,7 +178,7 @@ pub fn get_ranges() -> Result<Box<AwsIpRanges>> {
   AWS IP Ranges
 -------------------------------------------------------------------------------------------------*/
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct AwsIpRanges {
     pub sync_token: String,
     pub create_date: DateTime<Utc>,
@@ -198,7 +198,39 @@ pub struct AwsIpPrefix {
     pub services: BTreeSet<Rc<str>>,
 }
 
+#[derive(Debug, Clone)]
+pub struct SearchResults {
+    pub aws_ip_ranges: Box<AwsIpRanges>,
+    pub prefix_matches: BTreeMap<IpNetwork, BTreeSet<AwsIpPrefix>>,
+    pub prefixes_not_found: BTreeSet<IpNetwork>,
+}
+
 impl AwsIpRanges {
+    pub fn get(&self, value: &IpNetwork) -> Option<BTreeSet<AwsIpPrefix>> {
+        let mut aws_ip_prefixes: BTreeSet<AwsIpPrefix> = BTreeSet::new();
+
+        let lower_bound = match value {
+            IpNetwork::V4(_) => new_network_prefix(value, 8u8).unwrap(),
+            IpNetwork::V6(_) => new_network_prefix(value, 16u8).unwrap(),
+        };
+        let upper_bound = network_prefix(value);
+
+        for (_, aws_ip_prefix) in self
+            .prefixes
+            .range((Included(lower_bound), Included(upper_bound)))
+        {
+            if is_supernet_of(aws_ip_prefix.prefix, *value) {
+                aws_ip_prefixes.insert(aws_ip_prefix.clone());
+            }
+        }
+
+        if aws_ip_prefixes.len() > 0 {
+            Some(aws_ip_prefixes)
+        } else {
+            None
+        }
+    }
+
     pub fn get_region(&self, value: &str) -> Option<Rc<str>> {
         get_rc_str_from_set(value, &self.regions)
     }
@@ -211,14 +243,73 @@ impl AwsIpRanges {
         get_rc_str_from_set(value, &self.services)
     }
 
-    fn from_prefix_map(&self, prefix_map: BTreeMap<IpNetwork, AwsIpPrefix>) -> AwsIpRanges {
-        let mut aws_ip_ranges = AwsIpRanges {
-            sync_token: self.sync_token.clone(),
-            create_date: self.create_date,
-            ..AwsIpRanges::default()
-        };
+    pub fn search<'p, P>(&self, values: P) -> Box<SearchResults>
+    where
+        P: Iterator<Item = &'p IpNetwork>,
+    {
+        let mut search_results = Box::new(SearchResults {
+            aws_ip_ranges: Box::new(AwsIpRanges {
+                sync_token: self.sync_token.clone(),
+                create_date: self.create_date,
+                ..AwsIpRanges::default()
+            }),
+            prefix_matches: BTreeMap::new(),
+            prefixes_not_found: BTreeSet::new(),
+        });
 
-        aws_ip_ranges.prefixes = prefix_map;
+        for prefix in values {
+            if let Some(aws_ip_prefixes) = self.get(prefix) {
+                aws_ip_prefixes.iter().for_each(|aws_ip_prefix| {
+                    search_results
+                        .aws_ip_ranges
+                        .prefixes
+                        .insert(aws_ip_prefix.prefix, aws_ip_prefix.clone());
+                });
+
+                search_results
+                    .prefix_matches
+                    .insert(*prefix, aws_ip_prefixes);
+            } else {
+                warn!("Prefix not found in AWS IP ranges: {prefix}");
+                search_results.prefixes_not_found.insert(*prefix);
+            }
+        }
+
+        search_results
+    }
+
+    pub fn filter(&self, filter: &Filter) -> Box<AwsIpRanges> {
+        let filtered_aws_ip_prefix_map: BTreeMap<IpNetwork, AwsIpPrefix> = self
+            .prefixes
+            .iter()
+            .filter(|(_, aws_ip_prefix)| filter.include_prefix(*aws_ip_prefix))
+            .map(|(prefix, aws_ip_prefix)| (*prefix, aws_ip_prefix.clone()))
+            .collect();
+
+        let mut aws_ip_ranges = Box::new(AwsIpRanges::from(filtered_aws_ip_prefix_map));
+        aws_ip_ranges.sync_token = self.sync_token.clone();
+        aws_ip_ranges.create_date = self.create_date;
+
+        aws_ip_ranges
+    }
+}
+
+impl From<BTreeSet<AwsIpPrefix>> for AwsIpRanges {
+    fn from(value: BTreeSet<AwsIpPrefix>) -> Self {
+        let aws_ip_prefix_map: BTreeMap<IpNetwork, AwsIpPrefix> = value
+            .into_iter()
+            .map(|aws_ip_prefix| (aws_ip_prefix.prefix, aws_ip_prefix))
+            .collect();
+
+        Self::from(aws_ip_prefix_map)
+    }
+}
+
+impl From<BTreeMap<IpNetwork, AwsIpPrefix>> for AwsIpRanges {
+    fn from(value: BTreeMap<IpNetwork, AwsIpPrefix>) -> Self {
+        let mut aws_ip_ranges = AwsIpRanges::default();
+
+        aws_ip_ranges.prefixes = value;
 
         aws_ip_ranges.regions = aws_ip_ranges
             .prefixes
@@ -240,59 +331,6 @@ impl AwsIpRanges {
             .collect();
 
         aws_ip_ranges
-    }
-
-    pub fn filter(&self, filter: &Filter) -> AwsIpRanges {
-        let mut searched_prefix_map: Option<BTreeMap<IpNetwork, AwsIpPrefix>> = None;
-        let source_prefix_map_ref: &BTreeMap<IpNetwork, AwsIpPrefix>;
-
-        if let Some(filter_prefixes) = &filter.prefixes {
-            searched_prefix_map = Some(self.prefix_search(filter_prefixes));
-            source_prefix_map_ref = searched_prefix_map.as_ref().unwrap();
-        } else {
-            source_prefix_map_ref = &self.prefixes;
-        };
-
-        let _ = &searched_prefix_map; // Reading local variable to make compiler happy
-
-        let filtered_prefix_map: BTreeMap<IpNetwork, AwsIpPrefix> = source_prefix_map_ref
-            .values()
-            .filter(|aws_ip_prefix| filter.include_prefix(*aws_ip_prefix))
-            .map(|aws_ip_prefix| (aws_ip_prefix.prefix, aws_ip_prefix.clone()))
-            .collect();
-
-        self.from_prefix_map(filtered_prefix_map)
-    }
-
-    fn prefix_search(
-        &self,
-        find_prefixes: &BTreeSet<IpNetwork>,
-    ) -> BTreeMap<IpNetwork, AwsIpPrefix> {
-        let mut prefix_map = BTreeMap::new();
-
-        for prefix in find_prefixes {
-            let mut found = false;
-            let lower_bound = match prefix {
-                IpNetwork::V4(_) => new_network_prefix(prefix, 8u8).unwrap(),
-                IpNetwork::V6(_) => new_network_prefix(prefix, 16u8).unwrap(),
-            };
-            let upper_bound = network_prefix(prefix);
-
-            for (network_prefix, aws_ip_prefix) in self
-                .prefixes
-                .range((Included(lower_bound), Included(upper_bound)))
-            {
-                if is_supernet_of(aws_ip_prefix.prefix, *prefix) {
-                    found = true;
-                    prefix_map.insert(*network_prefix, aws_ip_prefix.clone());
-                }
-            }
-            if !found {
-                warn!("Prefix {prefix} not found in AWS IP ranges");
-            }
-        }
-
-        prefix_map
     }
 }
 
@@ -356,17 +394,6 @@ impl Filter {
         }
     }
 
-    fn contains_prefixes(&self, aws_ip_prefix: &AwsIpPrefix) -> bool {
-        if let Some(filter_prefixes) = &self.prefixes {
-            filter_prefixes
-                .iter()
-                .any(|filter_prefix| is_supernet_of(aws_ip_prefix.prefix, *filter_prefix))
-        } else {
-            trace!("No `prefixes` filter");
-            true
-        }
-    }
-
     fn match_regions(&self, aws_ip_prefix: &AwsIpPrefix) -> bool {
         if let Some(filter_regions) = &self.regions {
             filter_regions.contains(&aws_ip_prefix.region)
@@ -400,7 +427,6 @@ impl Filter {
     pub fn include_prefix(&self, prefix: &AwsIpPrefix) -> bool {
         let filters = [
             Filter::match_prefix_type,
-            // Filter::contains_prefixes,
             Filter::match_regions,
             Filter::match_network_border_groups,
             Filter::match_services,
