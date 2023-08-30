@@ -1,7 +1,7 @@
 use awsipranges::{AwsIpRanges, SearchResults};
 use clap::Parser;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
-use comfy_table::presets::UTF8_FULL;
+use comfy_table::presets::{NOTHING, UTF8_FULL};
 use comfy_table::*;
 use ipnetwork::IpNetwork;
 use log::error;
@@ -253,6 +253,28 @@ fn display_prefix_table(aws_ip_ranges: &AwsIpRanges) {
     column.set_cell_alignment(CellAlignment::Right);
 
     println!("{table}");
+
+    // Print prefix-table summary
+    let aws_ip_prefix_count = aws_ip_ranges.prefixes.len();
+    let aws_region_count = aws_ip_ranges.regions.len();
+
+    let mut summary_table = Table::new();
+    summary_table
+        .load_preset(NOTHING)
+        .set_content_arrangement(ContentArrangement::Dynamic);
+
+    summary_table.add_row(vec![
+        Cell::new(aws_ip_prefix_count),
+        Cell::new("AWS IP Prefixes"),
+    ]);
+    summary_table.add_row(vec![Cell::new(aws_region_count), Cell::new("AWS Regions")]);
+
+    let summary_numbers_column = summary_table
+        .column_mut(0)
+        .expect("The first column exists");
+    summary_numbers_column.set_cell_alignment(CellAlignment::Right);
+
+    println!("{summary_table}");
 }
 
 /*--------------------------------------------------------------------------------------
