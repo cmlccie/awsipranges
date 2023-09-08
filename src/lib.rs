@@ -600,7 +600,7 @@ pub struct JsonIpv6Prefix<'j> {
 -------------------------------------------------------------------------------------------------*/
 
 mod aws_ip_ranges_datetime_format {
-    use chrono::{DateTime, TimeZone, Utc};
+    use chrono::{DateTime, NaiveDateTime, Utc};
     use serde::{self, Deserialize, Deserializer, Serializer};
 
     const AWS_IP_RANGES_DATETIME_FORMAT: &'static str = "%Y-%m-%d-%H-%M-%S";
@@ -618,7 +618,8 @@ mod aws_ip_ranges_datetime_format {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Utc.datetime_from_str(&s, AWS_IP_RANGES_DATETIME_FORMAT)
+        NaiveDateTime::parse_from_str(&s, AWS_IP_RANGES_DATETIME_FORMAT)
+            .map(|naive_date_time| naive_date_time.and_utc())
             .map_err(serde::de::Error::custom)
     }
 }
