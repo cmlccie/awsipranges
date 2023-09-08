@@ -523,7 +523,7 @@ pub fn get_json() -> Result<String> {
         } else {
             info!("IP ranges cache is stale; refresh cache");
             if let Ok(json) = get_json_from_url() {
-                info!("Successfully retrieve fresh IP Ranges JSON; update cache file");
+                info!("Successfully retrieved fresh IP Ranges JSON; update cache file");
                 cache_json_to_file(&json)?;
                 Ok(json)
             } else {
