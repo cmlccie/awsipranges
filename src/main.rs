@@ -296,11 +296,30 @@ fn display_search_summary(
     let search_prefixes_found = search_results.prefix_matches.len();
     let search_prefixes_not_found = search_results.prefixes_not_found.len();
 
-    let found_aws_ip_prefixes = search_results.aws_ip_ranges.prefixes.len();
+    let mut table = Table::new();
+    table
+        .load_preset(NOTHING)
+        .set_content_arrangement(ContentArrangement::Dynamic);
+
+    // Found prefixes
+    table.add_row(vec![
+        Cell::new(search_prefixes_found),
+        Cell::new("/"),
+        Cell::new(search_prefix_count),
+        Cell::new("provided prefixes found"),
+    ]);
+
+    // Not found prefixes
+    table.add_row(vec![
+        Cell::new(search_prefixes_not_found),
+        Cell::new("/"),
+        Cell::new(search_prefix_count),
+        Cell::new("provided prefixes were NOT found in the AWS IP Ranges"),
+    ]);
+
+    let first_column = table.column_mut(0).expect("The first column exists");
+    first_column.set_cell_alignment(CellAlignment::Right);
 
     println!("");
-    println!(
-        "{search_prefixes_found}/{search_prefix_count} provided prefixes found in {found_aws_ip_prefixes} AWS IP Prefixes"
-    );
-    println!("{search_prefixes_not_found}/{search_prefix_count} provided prefixes were NOT found in the AWS IP Ranges");
+    println!("{table}");
 }
