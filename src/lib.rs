@@ -43,7 +43,7 @@ lazy_static! {
 
 pub fn get_ranges() -> Result<Box<AwsIpRanges>> {
     let json = get_json()?;
-    let json_ip_ranges = parse_json(&json);
+    let json_ip_ranges = parse_json(&json)?;
 
     let mut aws_ip_ranges = Box::new(AwsIpRanges::default());
 
@@ -543,6 +543,11 @@ pub fn get_json() -> Result<String> {
     }
 }
 
+fn get_json_from_url() -> Result<String> {
+    let response = reqwest::blocking::get(AWS_IP_RANGES_CONFIG.get_string("url")?)?;
+    Ok(response.text()?)
+}
+
 fn cache_json_to_file(json: &str) -> Result<()> {
     let cache_path: PathBuf = AWS_IP_RANGES_CONFIG.get_string("cache_file")?.into();
 
@@ -557,16 +562,11 @@ fn get_json_from_file() -> Result<String> {
     Ok(fs::read_to_string(cache_path)?)
 }
 
-fn get_json_from_url() -> Result<String> {
-    let response = reqwest::blocking::get(AWS_IP_RANGES_CONFIG.get_string("url")?)?;
-    Ok(response.text()?)
+pub fn parse_json<'j>(json: &'j str) -> Result<JsonIpRanges<'j>> {
+    Ok(serde_json::from_str(json)?)
 }
 
-pub fn parse_json<'j>(json: &'j str) -> JsonIpRanges<'j> {
-    serde_json::from_str(json).expect("Error parsing JSON")
-}
-
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct JsonIpRanges<'j> {
     #[serde(rename = "syncToken")]
     pub sync_token: &'j str,
@@ -579,7 +579,7 @@ pub struct JsonIpRanges<'j> {
     pub ipv6_prefixes: Vec<JsonIpv6Prefix<'j>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct JsonIpPrefix<'j> {
     pub ip_prefix: Ipv4Network,
     pub region: &'j str,
@@ -587,7 +587,7 @@ pub struct JsonIpPrefix<'j> {
     pub service: &'j str,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct JsonIpv6Prefix<'j> {
     pub ipv6_prefix: Ipv6Network,
     pub region: &'j str,
@@ -621,5 +621,54 @@ mod aws_ip_ranges_datetime_format {
         NaiveDateTime::parse_from_str(&s, AWS_IP_RANGES_DATETIME_FORMAT)
             .map(|naive_date_time| naive_date_time.and_utc())
             .map_err(serde::de::Error::custom)
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------
+  Unit Tests
+-------------------------------------------------------------------------------------------------*/
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /*----------------------------------------------------------------------------------
+      Low Level API
+    ----------------------------------------------------------------------------------*/
+
+    #[test]
+    fn test_get_json_from_url() {
+        let json = get_json_from_url();
+        assert!(json.is_ok());
+    }
+
+    #[test]
+    fn test_cache_json_to_file() {
+        let json = get_json_from_url().unwrap();
+        let result = cache_json_to_file(&json);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_get_json_from_file() {
+        let json_from_url = get_json_from_file().unwrap();
+        cache_json_to_file(&json_from_url).unwrap();
+        let json_from_file = get_json_from_file();
+        assert!(json_from_file.is_ok());
+    }
+
+    #[test]
+    fn test_parse_json() {
+        let json = get_json_from_url().unwrap();
+        let json_ip_ranges = parse_json(&json);
+        assert!(json_ip_ranges.is_ok());
+    }
+
+    #[test]
+    fn test_serialize_json_ip_ranges() {
+        let json_from_url = get_json_from_url().unwrap();
+        let json_ip_ranges = parse_json(&json_from_url).unwrap();
+        let serialized_json = serde_json::to_string(&json_ip_ranges);
+        assert!(serialized_json.is_ok());
     }
 }
