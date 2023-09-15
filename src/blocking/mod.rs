@@ -1,6 +1,6 @@
 use crate::core::aws_ip_ranges::{AwsIpPrefix, AwsIpRanges};
 use crate::core::config::AWS_IP_RANGES_CONFIG;
-use crate::core::errors_and_results::Result;
+use crate::core::errors::Result;
 use crate::core::json_ip_ranges::JsonIpRanges;
 use crate::core::utils::get_rc_str_from_set;
 use ipnetwork::IpNetwork;

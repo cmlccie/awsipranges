@@ -18,7 +18,7 @@ pub fn get_rc_str_from_set(value: &str, set: &BTreeSet<Rc<str>>) -> Option<Rc<st
 --------------------------------------------------------------------------------------*/
 
 pub mod ipnetwork {
-    use crate::core::errors_and_results::Result;
+    use crate::core::errors::Result;
     use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 
     /*
