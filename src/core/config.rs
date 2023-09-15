@@ -1,4 +1,5 @@
 use config::{Config, Environment};
+use lazy_static::lazy_static;
 use std::path::PathBuf;
 
 /*-------------------------------------------------------------------------------------------------

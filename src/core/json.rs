@@ -1,6 +1,15 @@
+use crate::core::errors::Result;
 use chrono::{DateTime, Utc};
 use ipnetwork::{Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
+
+/*-------------------------------------------------------------------------------------------------
+  Parse JSON
+-------------------------------------------------------------------------------------------------*/
+
+pub fn parse<'j>(json: &'j str) -> Result<JsonIpRanges<'j>> {
+    Ok(serde_json::from_str(json)?)
+}
 
 /*-------------------------------------------------------------------------------------------------
   JSON Data Structures
