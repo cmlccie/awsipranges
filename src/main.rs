@@ -83,7 +83,7 @@ fn main() -> awsipranges::Result<()> {
         .map(|search_prefixes| aws_ip_ranges.search(search_prefixes.iter()));
 
     // Apply Filters
-    let filter = if [
+    let filter = [
         args.ipv4,
         args.ipv6,
         args.regions.is_some(),
@@ -92,11 +92,8 @@ fn main() -> awsipranges::Result<()> {
     ]
     .iter()
     .any(|v| *v)
-    {
-        Some(build_filter(&args, &aws_ip_ranges))
-    } else {
-        None
-    };
+    .then(|| build_filter(&args, &aws_ip_ranges));
+
     let filtered_results = match (&search_results, &filter) {
         (Some(search_results), Some(filter)) => Some(search_results.aws_ip_ranges.filter(&filter)),
         (None, Some(filter)) => Some(aws_ip_ranges.filter(&filter)),
