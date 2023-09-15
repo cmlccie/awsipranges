@@ -3,8 +3,12 @@ use ipnetwork::{Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
 
 /*-------------------------------------------------------------------------------------------------
-  JSON IP Ranges
+  JSON Data Structures
 -------------------------------------------------------------------------------------------------*/
+
+/*--------------------------------------------------------------------------------------
+  JSON IP Ranges
+--------------------------------------------------------------------------------------*/
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct JsonIpRanges<'j> {
@@ -19,6 +23,10 @@ pub struct JsonIpRanges<'j> {
     pub ipv6_prefixes: Vec<JsonIpv6Prefix<'j>>,
 }
 
+/*--------------------------------------------------------------------------------------
+  JSON IP (IPv4) Prefix
+--------------------------------------------------------------------------------------*/
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct JsonIpPrefix<'j> {
     pub ip_prefix: Ipv4Network,
@@ -26,6 +34,10 @@ pub struct JsonIpPrefix<'j> {
     pub network_border_group: &'j str,
     pub service: &'j str,
 }
+
+/*--------------------------------------------------------------------------------------
+  JSON IPv6 Prefix
+--------------------------------------------------------------------------------------*/
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct JsonIpv6Prefix<'j> {
