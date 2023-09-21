@@ -98,7 +98,7 @@ impl AwsIpRanges {
                     .prefix_matches
                     .insert(*prefix, aws_ip_prefixes);
             } else {
-                warn!("Prefix not found in AWS IP ranges: {prefix}");
+                warn!("Search CIDR not found in AWS IP ranges: {prefix}");
                 search_results.prefixes_not_found.insert(*prefix);
             }
         }
