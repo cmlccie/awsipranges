@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------------------------------
-  Command Line Interface (CLI) Modules
+  Main Modules
 -------------------------------------------------------------------------------------------------*/
 
 mod cli;
 
-use clap::Parser;
-
 /*-------------------------------------------------------------------------------------------------
-  Main CLI Function
+Main CLI Function
 -------------------------------------------------------------------------------------------------*/
+
+use clap::Parser;
 
 fn main() -> awsipranges::Result<()> {
     // Parse CLI arguments
@@ -24,9 +24,9 @@ fn main() -> awsipranges::Result<()> {
     // Get AWS IP Ranges
     let aws_ip_ranges = awsipranges::get_ranges()?;
 
-    // Prefix Search
-    let search_prefixes = cli::parse_prefixes(&args);
-    let search_results = search_prefixes
+    // Search for CIDRs
+    let search_cidrs = cli::parse_prefixes(&args);
+    let search_results = search_cidrs
         .as_ref()
         .map(|search_prefixes| aws_ip_ranges.search(search_prefixes.iter()));
 
@@ -34,9 +34,9 @@ fn main() -> awsipranges::Result<()> {
     let filter = [
         args.ipv4,
         args.ipv6,
-        args.regions.is_some(),
-        args.network_border_groups.is_some(),
-        args.services.is_some(),
+        args.include_regions.is_some(),
+        args.include_network_border_groups.is_some(),
+        args.include_services.is_some(),
     ]
     .iter()
     .any(|v| *v)
@@ -48,7 +48,7 @@ fn main() -> awsipranges::Result<()> {
         _ => None,
     };
 
-    // CLI Output
+    // Select AWS IP Ranges to output
     let display_aws_ip_ranges = filtered_results
         .as_ref()
         .or(search_results
@@ -57,12 +57,31 @@ fn main() -> awsipranges::Result<()> {
         .or(Some(&aws_ip_ranges))
         .unwrap();
 
-    cli::output::log_search_summary(&search_prefixes, &search_results);
-    cli::output::display_prefix_table(&display_aws_ip_ranges);
+    // Log CIDR search results
+    cli::log::search_results(&search_cidrs, &search_results);
+
+    // Display selected CLI output
+    if display_aws_ip_ranges.prefixes.is_empty() {
+        eprintln!("\nNo AWS IP Prefixes match the provided criteria.\n");
+        std::process::exit(1);
+    } else {
+        if args.output.prefix_table {
+            cli::output::prefix_table(display_aws_ip_ranges);
+        } else if args.output.cidr_format {
+            cli::output::prefixes_in_cidr_format(&display_aws_ip_ranges);
+        } else if args.output.netmask_format {
+            cli::output::prefixes_in_netmask_format(&display_aws_ip_ranges);
+        } else if args.output.regions {
+            cli::output::regions(&display_aws_ip_ranges);
+        } else if args.output.network_border_groups {
+            cli::output::network_border_groups(&display_aws_ip_ranges);
+        } else if args.output.services {
+            cli::output::services(&display_aws_ip_ranges);
+        } else {
+            // Default output
+            cli::output::prefix_table(display_aws_ip_ranges);
+        };
+    };
 
     Ok(())
 }
-
-/*-------------------------------------------------------------------------------------------------
-  CLI Display Functions
--------------------------------------------------------------------------------------------------*/

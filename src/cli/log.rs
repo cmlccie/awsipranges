@@ -2,11 +2,15 @@ use awsipranges::SearchResults;
 use ipnetwork::IpNetwork;
 use log::{info, warn};
 
+/*-------------------------------------------------------------------------------------------------
+  Logging Functions
+-------------------------------------------------------------------------------------------------*/
+
 /*--------------------------------------------------------------------------------------
-  Display Search Summary
+  Search Results
 --------------------------------------------------------------------------------------*/
 
-pub fn log_search_summary(
+pub fn search_results(
     search_cidrs: &Option<Vec<IpNetwork>>,
     search_results: &Option<Box<SearchResults>>,
 ) {

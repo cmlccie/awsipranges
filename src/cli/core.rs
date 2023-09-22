@@ -38,11 +38,12 @@ pub fn build_filter(args: &cli::Args, aws_ip_ranges: &AwsIpRanges) -> awsiprange
         _ => None,
     };
 
-    let regions: Option<BTreeSet<Rc<str>>> = args.regions.as_ref().map(|regions| {
+    let regions: Option<BTreeSet<Rc<str>>> = args.include_regions.as_ref().map(|regions| {
         regions
             .iter()
             .filter_map(|region| {
-                aws_ip_ranges.get_region(region).or_else(|| {
+                let region = crate::cli::utils::to_lowercase(region, ["GLOBAL"]);
+                aws_ip_ranges.get_region(&region).or_else(|| {
                     error!(
                         "Invalid region or region not found in AWS IP Ranges: {:?}",
                         region
@@ -54,13 +55,14 @@ pub fn build_filter(args: &cli::Args, aws_ip_ranges: &AwsIpRanges) -> awsiprange
     });
 
     let network_border_groups: Option<BTreeSet<Rc<str>>> =
-        args.network_border_groups
+        args.include_network_border_groups
             .as_ref()
             .map(|network_border_groups| {
                 network_border_groups
                     .iter()
                     .filter_map(|network_border_group| {
-                        aws_ip_ranges.get_network_border_group(network_border_group).or_else(|| {
+                        let network_border_group = crate::cli::utils::to_lowercase(network_border_group, ["GLOBAL"]);
+                        aws_ip_ranges.get_network_border_group(&network_border_group).or_else(|| {
                                 error!(
                                     "Invalid network border group or network border group not found in AWS IP Ranges: `{:?}`",
                                     network_border_group
@@ -71,11 +73,12 @@ pub fn build_filter(args: &cli::Args, aws_ip_ranges: &AwsIpRanges) -> awsiprange
                     .collect()
             });
 
-    let services: Option<BTreeSet<Rc<str>>> = args.services.as_ref().map(|services| {
+    let services: Option<BTreeSet<Rc<str>>> = args.include_services.as_ref().map(|services| {
         services
             .iter()
             .filter_map(|service| {
-                aws_ip_ranges.get_service(service).or_else(|| {
+                let service = service.to_uppercase();
+                aws_ip_ranges.get_service(&service).or_else(|| {
                     error!(
                         "Invalid service or service not found in AWS IP Ranges: {:?}",
                         service
