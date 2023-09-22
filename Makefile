@@ -12,6 +12,9 @@ update:
 format:
 	cargo fmt
 
+line-count:
+	find src -name '*.rs' | xargs wc -l
+
 lint:
 	cargo fmt --check
 	cargo check
