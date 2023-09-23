@@ -14,7 +14,7 @@ use std::rc::Rc;
   AWS IP Prefix
 -------------------------------------------------------------------------------------------------*/
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct AwsIpPrefix {
     pub prefix: IpNetwork,
     pub region: Rc<str>,
@@ -26,7 +26,7 @@ pub struct AwsIpPrefix {
   AWS IP Ranges
 -------------------------------------------------------------------------------------------------*/
 
-#[derive(Debug, Default, Clone)]
+#[derive(Clone, Debug, Default)]
 pub struct AwsIpRanges {
     pub sync_token: String,
     pub create_date: DateTime<Utc>,

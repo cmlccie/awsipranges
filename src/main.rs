@@ -83,5 +83,10 @@ fn main() -> awsipranges::Result<()> {
         };
     };
 
+    // Save results to CSV file
+    if let Some(csv_file_path) = args.csv_file {
+        cli::csv::save(&display_aws_ip_ranges, &csv_file_path)?;
+    };
+
     Ok(())
 }

@@ -4,6 +4,8 @@
 
 mod args;
 mod core;
+
+pub mod csv;
 pub mod log;
 pub mod output;
 pub mod utils;
