@@ -96,7 +96,7 @@ mod tests {
 
     #[test]
     fn test_get_json_from_file() {
-        let json_from_url = get_json_from_file().unwrap();
+        let json_from_url = get_json_from_url().unwrap();
         cache_json_to_file(&json_from_url).unwrap();
         let json_from_file = get_json_from_file();
         assert!(json_from_file.is_ok());
