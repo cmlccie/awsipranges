@@ -15,6 +15,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Install grcov
+        run: cargo install grcov
+
       - name: Build
         run: make build
 
