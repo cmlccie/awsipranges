@@ -22,6 +22,27 @@ lint:
 test:
 	cargo test
 
+coverage: export CARGO_INCREMENTAL=0
+coverage: export CARGO_ENCODED_RUSTFLAGS=-Cinstrument-coverage
+coverage: export LLVM_PROFILE_FILE=cargo-test-%p-%m.profraw
+coverage:
+	@mkdir -p target/coverage
+	@rm -rf target/coverage/*
+	cargo test
+	@grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/coverage/tests.lcov
+	@find . -name '*.profraw' -delete
+
+coverage_report: export CARGO_INCREMENTAL=0
+coverage_report: export CARGO_ENCODED_RUSTFLAGS=-Cinstrument-coverage
+coverage_report: export LLVM_PROFILE_FILE=cargo-test-%p-%m.profraw
+coverage_report:
+	@mkdir -p target/coverage
+	@rm -rf target/coverage/*
+	cargo test
+	@grcov . --binary-path ./target/debug/deps/ -s . -t html --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/coverage/html
+	@find . -name '*.profraw' -delete
+
+
 build:
 	cargo build
 
