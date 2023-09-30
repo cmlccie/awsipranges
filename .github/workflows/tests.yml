@@ -1,4 +1,4 @@
-name: test
+name: tests
 on:
   - push
   - pull_request
@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@master
 
-      - name: Install Toolchain
+      - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update
 
       - uses: Swatinem/rust-cache@v2
@@ -27,13 +27,7 @@ jobs:
           cargo install grcov
           rustup component add llvm-tools-preview
 
-      - name: Build
-        run: make build
-
-      - name: Test
-        run: make test
-
-      - name: Analyze Code Coverage
+      - name: Test w/Coverage
         if: always()
         run: make coverage
 
