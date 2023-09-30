@@ -22,8 +22,10 @@ jobs:
 
       - uses: mozilla-actions/sccache-action@v0.0.3
 
-      - name: Install grcov
-        run: cargo install grcov
+      - name: Install Code Coverage Dependencies
+        run: |
+          cargo install grcov
+          rustup component add llvm-tools-preview
 
       - name: Build
         run: make build
