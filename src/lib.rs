@@ -2,7 +2,7 @@
   Library Modules
 -------------------------------------------------------------------------------------------------*/
 
-pub mod blocking;
+mod blocking;
 mod core;
 
 /*-------------------------------------------------------------------------------------------------
@@ -10,7 +10,7 @@ mod core;
 -------------------------------------------------------------------------------------------------*/
 
 pub use crate::blocking::get_ranges;
-pub use crate::core::aws_ip_ranges::{AwsIpPrefix, AwsIpRanges, Filter, PrefixType, SearchResults};
+pub use crate::core::awsipranges::{AwsIpPrefix, AwsIpRanges, Filter, PrefixType, SearchResults};
 pub use crate::core::errors::{Error, Result};
 
 /*--------------------------------------------------------------------------------------

@@ -9,7 +9,7 @@ mod json;
 -------------------------------------------------------------------------------------------------*/
 
 use crate::blocking::json::get_json;
-use crate::core::aws_ip_ranges::AwsIpRanges;
+use crate::core::awsipranges::AwsIpRanges;
 use crate::core::errors::Result;
 
 pub fn get_ranges() -> Result<Box<AwsIpRanges>> {

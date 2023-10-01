@@ -2,7 +2,7 @@
   Core Modules
 -------------------------------------------------------------------------------------------------*/
 
-pub mod aws_ip_ranges;
+pub mod awsipranges;
 pub mod config;
 pub mod datetime;
 pub mod errors;
