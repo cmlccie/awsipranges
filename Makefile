@@ -56,6 +56,9 @@ install:
 uninstall:
 	cargo uninstall
 
+docs:
+	cargo doc --open
+
 clean:
 	cargo clean
 	rm -rf debug/
