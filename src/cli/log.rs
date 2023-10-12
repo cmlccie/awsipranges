@@ -25,7 +25,7 @@ pub fn search_results(
     info!("Searched for {count_search_cidrs} CIDR(s) in the AWS IP Ranges");
 
     let count_search_cidrs_found = search_results.prefix_matches.len();
-    let count_containing_prefixes = search_results.aws_ip_ranges.prefixes.len();
+    let count_containing_prefixes = search_results.aws_ip_ranges.prefixes().len();
     if count_search_cidrs_found > 0 {
         info!("Found {count_search_cidrs_found} search CIDR(s) contained in {count_containing_prefixes} AWS IP Prefix(es)");
     };

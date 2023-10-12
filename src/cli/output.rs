@@ -33,7 +33,7 @@ pub fn prefix_table(aws_ip_ranges: &AwsIpRanges) {
             .fg(Color::Green),
     ]);
 
-    for prefix in aws_ip_ranges.prefixes.values() {
+    for prefix in aws_ip_ranges.prefixes().values() {
         let mut sorted_services = prefix
             .services
             .iter()
@@ -57,8 +57,8 @@ pub fn prefix_table(aws_ip_ranges: &AwsIpRanges) {
     println!("{table}");
 
     // Print prefix-table summary
-    let aws_ip_prefix_count = aws_ip_ranges.prefixes.len();
-    let aws_region_count = aws_ip_ranges.regions.len();
+    let aws_ip_prefix_count = aws_ip_ranges.prefixes().len();
+    let aws_region_count = aws_ip_ranges.regions().len();
 
     let mut summary_table = Table::new();
     summary_table
@@ -84,7 +84,7 @@ pub fn prefix_table(aws_ip_ranges: &AwsIpRanges) {
 --------------------------------------------------------------------------------------*/
 
 pub fn prefixes_in_cidr_format(aws_ip_ranges: &AwsIpRanges) {
-    for aws_ip_prefix in aws_ip_ranges.prefixes.values() {
+    for aws_ip_prefix in aws_ip_ranges.prefixes().values() {
         println!("{}", aws_ip_prefix.prefix);
     }
 }
@@ -94,7 +94,7 @@ pub fn prefixes_in_cidr_format(aws_ip_ranges: &AwsIpRanges) {
 --------------------------------------------------------------------------------------*/
 
 pub fn prefixes_in_netmask_format(aws_ip_ranges: &AwsIpRanges) {
-    for aws_ip_prefix in aws_ip_ranges.prefixes.values() {
+    for aws_ip_prefix in aws_ip_ranges.prefixes().values() {
         println!(
             "{} {}",
             aws_ip_prefix.prefix.network(),
@@ -108,7 +108,7 @@ pub fn prefixes_in_netmask_format(aws_ip_ranges: &AwsIpRanges) {
 --------------------------------------------------------------------------------------*/
 
 pub fn regions(aws_ip_ranges: &AwsIpRanges) {
-    for region in aws_ip_ranges.regions.iter() {
+    for region in aws_ip_ranges.regions().iter() {
         println!("{region}");
     }
 }
@@ -118,7 +118,7 @@ pub fn regions(aws_ip_ranges: &AwsIpRanges) {
 --------------------------------------------------------------------------------------*/
 
 pub fn network_border_groups(aws_ip_ranges: &AwsIpRanges) {
-    for network_border_group in aws_ip_ranges.network_border_groups.iter() {
+    for network_border_group in aws_ip_ranges.network_border_groups().iter() {
         println!("{network_border_group}");
     }
 }
@@ -128,7 +128,7 @@ pub fn network_border_groups(aws_ip_ranges: &AwsIpRanges) {
 --------------------------------------------------------------------------------------*/
 
 pub fn services(aws_ip_ranges: &AwsIpRanges) {
-    for service in aws_ip_ranges.services.iter() {
+    for service in aws_ip_ranges.services().iter() {
         println!("{service}");
     }
 }

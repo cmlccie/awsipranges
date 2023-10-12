@@ -28,17 +28,50 @@ pub struct AwsIpPrefix {
 
 #[derive(Clone, Debug, Default)]
 pub struct AwsIpRanges {
-    pub sync_token: String,
-    pub create_date: DateTime<Utc>,
+    pub(crate) sync_token: String,
+    pub(crate) create_date: DateTime<Utc>,
 
-    pub regions: BTreeSet<Rc<str>>,
-    pub network_border_groups: BTreeSet<Rc<str>>,
-    pub services: BTreeSet<Rc<str>>,
+    pub(crate) regions: BTreeSet<Rc<str>>,
+    pub(crate) network_border_groups: BTreeSet<Rc<str>>,
+    pub(crate) services: BTreeSet<Rc<str>>,
 
-    pub prefixes: BTreeMap<IpNetwork, AwsIpPrefix>,
+    pub(crate) prefixes: BTreeMap<IpNetwork, AwsIpPrefix>,
 }
 
 impl AwsIpRanges {
+    /// The "sync token" is a string containing the publication time for the current set of AWS IP
+    /// Ranges, in Unix epoch time format.
+    ///
+    /// ```
+    /// # let aws_ip_ranges = awsipranges::get_ranges()?;
+    /// let sync_token: &String = aws_ip_ranges.sync_token();
+    /// println!("Sync Token: {sync_token}");
+    /// # Ok::<(), awsipranges::Error>(())
+    /// ```
+    pub fn sync_token(&self) -> &String {
+        &self.sync_token
+    }
+
+    pub fn create_date(&self) -> &DateTime<Utc> {
+        &self.create_date
+    }
+
+    pub fn regions(&self) -> &BTreeSet<Rc<str>> {
+        &self.regions
+    }
+
+    pub fn network_border_groups(&self) -> &BTreeSet<Rc<str>> {
+        &self.network_border_groups
+    }
+
+    pub fn services(&self) -> &BTreeSet<Rc<str>> {
+        &self.services
+    }
+
+    pub fn prefixes(&self) -> &BTreeMap<IpNetwork, AwsIpPrefix> {
+        &self.prefixes
+    }
+
     pub fn get_ip_network(&self, value: &IpNetwork) -> Option<BTreeSet<AwsIpPrefix>> {
         let mut aws_ip_prefixes: BTreeSet<AwsIpPrefix> = BTreeSet::new();
 
@@ -125,7 +158,7 @@ impl AwsIpRanges {
         aws_ip_ranges
     }
 
-    pub fn from_json(json: &String) -> Result<Box<AwsIpRanges>> {
+    pub(crate) fn from_json(json: &String) -> Result<Box<AwsIpRanges>> {
         let json_ip_ranges = json::parse(json)?;
 
         let mut aws_ip_ranges = Box::new(AwsIpRanges::default());

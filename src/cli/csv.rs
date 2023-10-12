@@ -18,7 +18,7 @@ pub fn save(aws_ip_ranges: &AwsIpRanges, path: &PathBuf) -> Result<()> {
     ])?;
 
     // Write prefix records
-    for aws_ip_prefix in aws_ip_ranges.prefixes.values() {
+    for aws_ip_prefix in aws_ip_ranges.prefixes().values() {
         let record = (
             &aws_ip_prefix.prefix,
             aws_ip_prefix.region.clone(),

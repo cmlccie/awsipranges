@@ -61,7 +61,7 @@ fn main() -> awsipranges::Result<()> {
     cli::log::search_results(&search_cidrs, &search_results);
 
     // Display selected CLI output
-    if display_aws_ip_ranges.prefixes.is_empty() {
+    if display_aws_ip_ranges.prefixes().is_empty() {
         eprintln!("\nNo AWS IP Prefixes match the provided criteria.\n");
         std::process::exit(1);
     } else {
