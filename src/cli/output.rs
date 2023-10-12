@@ -12,13 +12,14 @@ use comfy_table::*;
 --------------------------------------------------------------------------------------*/
 
 pub fn prefix_table(aws_ip_ranges: &AwsIpRanges) {
-    let mut table = Table::new();
-    table
+    // Prefix Table
+    let mut prefix_table = Table::new();
+    prefix_table
         .load_preset(UTF8_FULL)
         .apply_modifier(UTF8_ROUND_CORNERS)
         .set_content_arrangement(ContentArrangement::Dynamic);
 
-    table.set_header(vec![
+    prefix_table.set_header(vec![
         Cell::new("IP Prefix")
             .add_attribute(Attribute::Bold)
             .fg(Color::Green),
@@ -42,7 +43,7 @@ pub fn prefix_table(aws_ip_ranges: &AwsIpRanges) {
         sorted_services.sort();
         let services = sorted_services.join(", ");
 
-        table.add_row(vec![
+        prefix_table.add_row(vec![
             Cell::new(prefix.prefix).add_attribute(Attribute::Bold),
             Cell::new(&prefix.region),
             Cell::new(&prefix.network_border_group),
@@ -51,25 +52,44 @@ pub fn prefix_table(aws_ip_ranges: &AwsIpRanges) {
     }
 
     // Right-align the IP Prefix column
-    let column = table.column_mut(0).expect("The first column exists");
+    let column = prefix_table.column_mut(0).expect("The first column exists");
     column.set_cell_alignment(CellAlignment::Right);
 
-    println!("{table}");
+    println!("{prefix_table}");
 
-    // Print prefix-table summary
+    // Prefix Table Summary
     let aws_ip_prefix_count = aws_ip_ranges.prefixes().len();
     let aws_region_count = aws_ip_ranges.regions().len();
+    let sync_token = aws_ip_ranges.sync_token();
+    let create_date = aws_ip_ranges.create_date();
 
     let mut summary_table = Table::new();
-    summary_table
-        .load_preset(NOTHING)
-        .set_content_arrangement(ContentArrangement::Dynamic);
+    summary_table.load_preset(NOTHING);
 
     summary_table.add_row(vec![
         Cell::new(aws_ip_prefix_count),
-        Cell::new("AWS IP Prefixes"),
+        Cell::new(if aws_ip_prefix_count == 1 {
+            "AWS IP Prefix"
+        } else {
+            "AWS IP Prefixes"
+        }),
+        Cell::new("Data File Created")
+            .set_alignment(CellAlignment::Right)
+            .fg(Color::DarkGrey),
+        Cell::new(create_date).fg(Color::DarkGrey),
     ]);
-    summary_table.add_row(vec![Cell::new(aws_region_count), Cell::new("AWS Regions")]);
+    summary_table.add_row(vec![
+        Cell::new(aws_region_count),
+        Cell::new(if aws_region_count == 1 {
+            "AWS Region"
+        } else {
+            "AWS Regions"
+        }),
+        Cell::new("Sync Token")
+            .set_alignment(CellAlignment::Right)
+            .fg(Color::DarkGrey),
+        Cell::new(sync_token).fg(Color::DarkGrey),
+    ]);
 
     let summary_numbers_column = summary_table
         .column_mut(0)
