@@ -2,7 +2,7 @@
 name = "awsipranges"
 description = "Quickly query the AWS IP Ranges"
 authors = ["Chris Lunsford <cm@lunsford.io>"]
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 
 [dependencies]
@@ -10,7 +10,6 @@ chrono = { version = "0.4.26", features = ["serde"] }
 clap = { version = "4.3.23", features = ["derive"] }
 clap-verbosity-flag = "2.0.1"
 comfy-table = "7.0.1"
-config = "0.13.3"
 csv = "1.2.2"
 dirs = "5.0.1"
 ipnetwork = "0.20.0"

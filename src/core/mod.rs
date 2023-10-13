@@ -3,7 +3,6 @@
 -------------------------------------------------------------------------------------------------*/
 
 pub mod awsipranges;
-pub mod config;
 pub mod datetime;
 pub mod errors;
 pub mod json;

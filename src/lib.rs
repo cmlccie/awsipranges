@@ -2,14 +2,14 @@
   Library Modules
 -------------------------------------------------------------------------------------------------*/
 
-mod blocking;
+mod blocking_client;
 mod core;
 
 /*-------------------------------------------------------------------------------------------------
   Library Public Interface
 -------------------------------------------------------------------------------------------------*/
 
-pub use crate::blocking::get_ranges;
+pub use crate::blocking_client::{get_ranges, BlockingClient};
 pub use crate::core::awsipranges::{AwsIpPrefix, AwsIpRanges, Filter, PrefixType, SearchResults};
 pub use crate::core::errors::{Error, Result};
 
