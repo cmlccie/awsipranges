@@ -462,3 +462,175 @@ impl PrefixType {
         }
     }
 }
+
+/*-------------------------------------------------------------------------------------------------
+  Unit Tests
+-------------------------------------------------------------------------------------------------*/
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /*-----------------------------------------------------------------------------
+      AwsIpPrefix
+    -----------------------------------------------------------------------------*/
+
+    #[test]
+    fn test_aws_ip_prefix_ordering() {
+        let prefix1 = AwsIpPrefix {
+            prefix: "10.0.0.0/8".parse().unwrap(),
+            region: Rc::from("us-east-1"),
+            network_border_group: Rc::from("us-east-1"),
+            services: [Rc::from("EC2")].into_iter().collect(),
+        };
+
+        let prefix2 = AwsIpPrefix {
+            prefix: "10.0.0.0/16".parse().unwrap(),
+            ..prefix1.clone()
+        };
+
+        let prefix3 = AwsIpPrefix {
+            prefix: "10.1.0.0/16".parse().unwrap(),
+            ..prefix2.clone()
+        };
+
+        let prefix4 = AwsIpPrefix {
+            region: Rc::from("us-east-2"),
+            ..prefix1.clone()
+        };
+
+        let prefix5 = AwsIpPrefix {
+            network_border_group: Rc::from("us-east-2"),
+            ..prefix1.clone()
+        };
+
+        let prefix6 = AwsIpPrefix {
+            services: [Rc::from("EC2"), Rc::from("ROUTE53")].into_iter().collect(),
+            ..prefix1.clone()
+        };
+
+        let prefix7 = AwsIpPrefix {
+            services: [Rc::from("EC2"), Rc::from("ROUTE53_HEALTHCHECKS")]
+                .into_iter()
+                .collect(),
+            ..prefix6.clone()
+        };
+
+        assert!(prefix1 < prefix2); // Shorter prefix length is less than longer prefix length
+        assert!(prefix2 < prefix3); // Lower prefix address is less than higher prefix address
+        assert!(prefix1 < prefix4); // Lower region is less than higher region
+        assert!(prefix1 < prefix5); // Lower network border group is less than higher network border group
+        assert!(prefix1 < prefix6); // Lexographically-equal shorter service set is less than longer set
+        assert!(prefix6 < prefix7); // Lexographically-lower service is less than higher service
+    }
+
+    #[test]
+    fn test_aws_ip_prefix_equality() {
+        let prefix1 = AwsIpPrefix {
+            prefix: "10.0.0.0/8".parse().unwrap(),
+            region: Rc::from("us-east-1"),
+            network_border_group: Rc::from("us-east-1"),
+            services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
+        };
+        let prefix2 = AwsIpPrefix {
+            prefix: "10.0.0.0/8".parse().unwrap(),
+            region: Rc::from("us-east-1"),
+            network_border_group: Rc::from("us-east-1"),
+            services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
+        };
+        let prefix3 = AwsIpPrefix {
+            prefix: "10.0.0.0/8".parse().unwrap(),
+            region: Rc::from("us-west-1"),
+            network_border_group: Rc::from("us-west-1"),
+            services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
+        };
+        assert_eq!(prefix1, prefix2);
+        assert_ne!(prefix1, prefix3);
+    }
+
+    /*-----------------------------------------------------------------------------
+      AwsIpRanges
+    -----------------------------------------------------------------------------*/
+
+    #[test]
+    fn test_aws_ip_ranges_sync_token() {
+        let aws_ip_ranges = AwsIpRanges {
+            sync_token: "1234567890".into(),
+            ..Default::default()
+        };
+        assert_eq!(aws_ip_ranges.sync_token(), "1234567890");
+    }
+
+    #[test]
+    fn test_aws_ip_ranges_create_date() {
+        let create_date = Utc::now();
+        let aws_ip_ranges = AwsIpRanges {
+            create_date: create_date.clone(),
+            ..Default::default()
+        };
+        assert_eq!(aws_ip_ranges.create_date(), &create_date);
+    }
+
+    #[test]
+    fn test_aws_ip_ranges_regions() {
+        let mut regions = BTreeSet::new();
+        regions.insert(Rc::from("us-east-1"));
+        regions.insert(Rc::from("us-west-1"));
+        let aws_ip_ranges = AwsIpRanges {
+            regions: regions.clone(),
+            ..Default::default()
+        };
+        assert_eq!(aws_ip_ranges.regions(), &regions);
+    }
+
+    #[test]
+    fn test_aws_ip_ranges_prefixes() {
+        let mut prefixes = BTreeMap::new();
+        prefixes.insert(
+            "10.0.0.0/8".parse().unwrap(),
+            AwsIpPrefix {
+                prefix: "10.0.0.0/8".parse().unwrap(),
+                region: Rc::from("us-east-1"),
+                network_border_group: Rc::from("us-east-1"),
+                services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
+            },
+        );
+        let aws_ip_ranges = AwsIpRanges {
+            sync_token: "1234567890".into(),
+            create_date: Utc::now(),
+            regions: prefixes
+                .values()
+                .map(|prefix| prefix.region.clone())
+                .collect(),
+            network_border_groups: prefixes
+                .values()
+                .map(|prefix| prefix.network_border_group.clone())
+                .collect(),
+            services: prefixes
+                .values()
+                .flat_map(|prefix| &prefix.services)
+                .map(|service| service.clone())
+                .collect(),
+            prefixes: prefixes.clone(),
+        };
+        assert_eq!(aws_ip_ranges.prefixes(), &prefixes);
+    }
+
+    /*-----------------------------------------------------------------------------
+      PrefixType
+    -----------------------------------------------------------------------------*/
+
+    #[test]
+    fn test_prefix_type_is_ipv4() {
+        let ipv4 = PrefixType::IPv4;
+        assert!(ipv4.is_ipv4());
+        assert!(!ipv4.is_ipv6());
+    }
+
+    #[test]
+    fn test_prefix_type_is_ipv6() {
+        let ipv6 = PrefixType::IPv6;
+        assert!(!ipv6.is_ipv4());
+        assert!(ipv6.is_ipv6());
+    }
+}

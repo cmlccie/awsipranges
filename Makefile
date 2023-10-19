@@ -19,7 +19,7 @@ lint:
 	cargo fmt --check
 	cargo check
 
-test:
+tests:
 	cargo test
 
 coverage: export CARGO_INCREMENTAL=0
