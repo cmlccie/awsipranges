@@ -604,11 +604,13 @@ mod tests {
 
     #[test]
     fn test_aws_ip_ranges_sync_token() {
+        let create_date = Utc::now();
+        let sync_token = create_date.timestamp().to_string();
         let aws_ip_ranges = AwsIpRanges {
-            sync_token: "1234567890".into(),
+            sync_token: sync_token.clone(),
             ..Default::default()
         };
-        assert_eq!(aws_ip_ranges.sync_token(), "1234567890");
+        assert_eq!(aws_ip_ranges.sync_token(), &sync_token);
     }
 
     #[test]
