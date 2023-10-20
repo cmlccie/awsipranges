@@ -423,7 +423,7 @@ impl Filter {
         }
     }
 
-    pub fn include_prefix(&self, prefix: &AwsIpPrefix) -> bool {
+    fn include_prefix(&self, prefix: &AwsIpPrefix) -> bool {
         let filters = [
             Filter::match_prefix_type,
             Filter::match_regions,
