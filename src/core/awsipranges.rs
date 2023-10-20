@@ -364,19 +364,16 @@ pub struct SearchResults {
 
 #[derive(Debug, Default)]
 pub struct Filter {
-    // Only include IPv4 or IPv6 AWS IP Prefixes.
+    /// Only include IPv4 or IPv6 AWS IP Prefixes.
     pub prefix_type: Option<PrefixType>,
 
-    // Only include AWS IP Prefixes that contain these prefixes.
-    pub prefixes: Option<BTreeSet<IpNetwork>>,
-
-    // Only include AWS IP Prefixes from these AWS regions.
+    /// Include AWS IP Prefixes from these AWS regions.
     pub regions: Option<BTreeSet<Rc<str>>>,
 
-    // Only include AWS IP Prefixes from these network border groups.
+    /// Include AWS IP Prefixes from these network border groups.
     pub network_border_groups: Option<BTreeSet<Rc<str>>>,
 
-    // Only include AWS IP Prefixes used by these services.
+    /// Include AWS IP Prefixes used by these services.
     pub services: Option<BTreeSet<Rc<str>>>,
 }
 
@@ -472,48 +469,102 @@ mod tests {
     use super::*;
 
     /*-----------------------------------------------------------------------------
+      Test Helper Functions
+    -----------------------------------------------------------------------------*/
+
+    fn test_aws_ipv4_prefix() -> AwsIpPrefix {
+        AwsIpPrefix {
+            prefix: "10.0.0.0/8".parse().unwrap(),
+            region: Rc::from("us-east-1"),
+            network_border_group: Rc::from("us-east-1"),
+            services: [Rc::from("EC2")].into_iter().collect(),
+        }
+    }
+
+    fn test_aws_ipv6_prefix() -> AwsIpPrefix {
+        AwsIpPrefix {
+            prefix: "2001:db8::/32".parse().unwrap(),
+            region: Rc::from("us-east-1"),
+            network_border_group: Rc::from("us-east-1"),
+            services: [Rc::from("EC2")].into_iter().collect(),
+        }
+    }
+
+    fn test_aws_ip_ranges() -> Box<AwsIpRanges> {
+        let create_date = Utc::now();
+        let sync_token = create_date.timestamp().to_string();
+        let prefixes: BTreeSet<AwsIpPrefix> = [
+            test_aws_ipv4_prefix(),
+            AwsIpPrefix {
+                prefix: "10.0.0.0/16".parse().unwrap(),
+                ..test_aws_ipv4_prefix()
+            },
+            AwsIpPrefix {
+                prefix: "10.1.0.0/16".parse().unwrap(),
+                region: Rc::from("us-west-1"),
+                network_border_group: Rc::from("us-west-1"),
+                services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
+            },
+            test_aws_ipv6_prefix(),
+            AwsIpPrefix {
+                prefix: "2001:db8::/48".parse().unwrap(),
+                ..test_aws_ipv6_prefix()
+            },
+            AwsIpPrefix {
+                prefix: "2001:db8:1::/48".parse().unwrap(),
+                region: Rc::from("us-west-1"),
+                network_border_group: Rc::from("us-west-1"),
+                services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
+            },
+        ]
+        .into_iter()
+        .collect();
+
+        let mut aws_ip_ranges = Box::new(AwsIpRanges::from(prefixes));
+        aws_ip_ranges.sync_token = sync_token;
+        aws_ip_ranges.create_date = create_date;
+
+        aws_ip_ranges
+    }
+
+    /*-----------------------------------------------------------------------------
       AwsIpPrefix
     -----------------------------------------------------------------------------*/
 
     #[test]
     fn test_aws_ip_prefix_ordering() {
-        let prefix1 = AwsIpPrefix {
-            prefix: "10.0.0.0/8".parse().unwrap(),
-            region: Rc::from("us-east-1"),
-            network_border_group: Rc::from("us-east-1"),
-            services: [Rc::from("EC2")].into_iter().collect(),
-        };
+        let prefix1 = test_aws_ipv4_prefix();
 
         let prefix2 = AwsIpPrefix {
             prefix: "10.0.0.0/16".parse().unwrap(),
-            ..prefix1.clone()
+            ..test_aws_ipv4_prefix()
         };
 
         let prefix3 = AwsIpPrefix {
             prefix: "10.1.0.0/16".parse().unwrap(),
-            ..prefix2.clone()
+            ..test_aws_ipv4_prefix()
         };
 
         let prefix4 = AwsIpPrefix {
             region: Rc::from("us-east-2"),
-            ..prefix1.clone()
+            ..test_aws_ipv4_prefix()
         };
 
         let prefix5 = AwsIpPrefix {
             network_border_group: Rc::from("us-east-2"),
-            ..prefix1.clone()
+            ..test_aws_ipv4_prefix()
         };
 
         let prefix6 = AwsIpPrefix {
             services: [Rc::from("EC2"), Rc::from("ROUTE53")].into_iter().collect(),
-            ..prefix1.clone()
+            ..test_aws_ipv4_prefix()
         };
 
         let prefix7 = AwsIpPrefix {
             services: [Rc::from("EC2"), Rc::from("ROUTE53_HEALTHCHECKS")]
                 .into_iter()
                 .collect(),
-            ..prefix6.clone()
+            ..test_aws_ipv4_prefix()
         };
 
         assert!(prefix1 < prefix2); // Shorter prefix length is less than longer prefix length
@@ -526,26 +577,25 @@ mod tests {
 
     #[test]
     fn test_aws_ip_prefix_equality() {
-        let prefix1 = AwsIpPrefix {
-            prefix: "10.0.0.0/8".parse().unwrap(),
-            region: Rc::from("us-east-1"),
-            network_border_group: Rc::from("us-east-1"),
-            services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
-        };
-        let prefix2 = AwsIpPrefix {
-            prefix: "10.0.0.0/8".parse().unwrap(),
-            region: Rc::from("us-east-1"),
-            network_border_group: Rc::from("us-east-1"),
-            services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
-        };
+        let prefix1 = test_aws_ipv4_prefix();
+        let prefix2 = test_aws_ipv4_prefix();
         let prefix3 = AwsIpPrefix {
-            prefix: "10.0.0.0/8".parse().unwrap(),
             region: Rc::from("us-west-1"),
-            network_border_group: Rc::from("us-west-1"),
-            services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
+            ..test_aws_ipv4_prefix()
         };
-        assert_eq!(prefix1, prefix2);
-        assert_ne!(prefix1, prefix3);
+        let prefix4 = AwsIpPrefix {
+            network_border_group: Rc::from("us-west-1"),
+            ..test_aws_ipv4_prefix()
+        };
+        let prefix5 = AwsIpPrefix {
+            services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
+            ..test_aws_ipv4_prefix()
+        };
+
+        assert_eq!(prefix1, prefix2); // Equal prefixes
+        assert_ne!(prefix1, prefix3); // Different regions
+        assert_ne!(prefix1, prefix4); // Different network border groups
+        assert_ne!(prefix1, prefix5); // Different services
     }
 
     /*-----------------------------------------------------------------------------
@@ -585,35 +635,155 @@ mod tests {
 
     #[test]
     fn test_aws_ip_ranges_prefixes() {
-        let mut prefixes = BTreeMap::new();
-        prefixes.insert(
-            "10.0.0.0/8".parse().unwrap(),
+        let prefixes: BTreeMap<IpNetwork, AwsIpPrefix> = [
+            test_aws_ipv4_prefix(),
             AwsIpPrefix {
-                prefix: "10.0.0.0/8".parse().unwrap(),
-                region: Rc::from("us-east-1"),
-                network_border_group: Rc::from("us-east-1"),
+                prefix: "10.0.0.0/16".parse().unwrap(),
+                ..test_aws_ipv4_prefix()
+            },
+            AwsIpPrefix {
+                prefix: "10.1.0.0/16".parse().unwrap(),
+                region: Rc::from("us-west-1"),
+                network_border_group: Rc::from("us-west-1"),
                 services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
             },
-        );
-        let aws_ip_ranges = AwsIpRanges {
-            sync_token: "1234567890".into(),
-            create_date: Utc::now(),
-            regions: prefixes
-                .values()
-                .map(|prefix| prefix.region.clone())
-                .collect(),
-            network_border_groups: prefixes
-                .values()
-                .map(|prefix| prefix.network_border_group.clone())
-                .collect(),
-            services: prefixes
-                .values()
-                .flat_map(|prefix| &prefix.services)
-                .map(|service| service.clone())
-                .collect(),
-            prefixes: prefixes.clone(),
+        ]
+        .iter()
+        .map(|aws_ip_prefix| (aws_ip_prefix.prefix, aws_ip_prefix.clone()))
+        .collect();
+
+        let aws_ip_ranges = Box::new(AwsIpRanges::from(prefixes.clone()));
+
+        assert_eq!(aws_ip_ranges.prefixes(), &prefixes); // Equal prefixes
+    }
+
+    #[test]
+    fn test_aws_ip_ranges_search() {
+        let aws_ip_ranges = test_aws_ip_ranges();
+
+        let search_networks = [
+            test_aws_ipv4_prefix().prefix,
+            "10.0.0.1/32".parse().unwrap(),
+            "192.168.0.0/24".parse().unwrap(),
+            test_aws_ipv6_prefix().prefix,
+            "2001:db8::1/128".parse().unwrap(),
+            "2001:face:1::1/64".parse().unwrap(),
+        ];
+
+        let search_results = aws_ip_ranges.search(search_networks.iter());
+
+        assert!(search_results
+            .prefix_matches
+            .contains_key(&search_networks[0])); // Full prefix match
+        assert!(search_results
+            .prefix_matches
+            .contains_key(&search_networks[3])); // Full prefix match
+
+        assert_eq!(aws_ip_ranges.prefixes().len(), 6); // Original AWS IP ranges unchanged
+        assert_eq!(search_results.aws_ip_ranges.prefixes.len(), 4); // Search results AWS IP ranges
+
+        assert!(search_results
+            .prefixes_not_found
+            .contains(&search_networks[2])); // No prefix match
+        assert!(search_results
+            .prefixes_not_found
+            .contains(&search_networks[5])); // No prefix match
+    }
+
+    /*-----------------------------------------------------------------------------
+      Filter
+    -----------------------------------------------------------------------------*/
+
+    #[test]
+    fn test_filter_match_prefix_type() {
+        let filter_ipv4 = Filter {
+            prefix_type: Some(PrefixType::IPv4),
+            ..Default::default()
         };
-        assert_eq!(aws_ip_ranges.prefixes(), &prefixes);
+        let filter_ipv6 = Filter {
+            prefix_type: Some(PrefixType::IPv6),
+            ..Default::default()
+        };
+        let filter_none = Filter::default();
+
+        let ipv4_prefix = test_aws_ipv4_prefix();
+        let ipv6_prefix = test_aws_ipv6_prefix();
+
+        assert!(filter_ipv4.match_prefix_type(&ipv4_prefix)); // IPv4 filter matches IPv4 prefix
+        assert!(!filter_ipv4.match_prefix_type(&ipv6_prefix)); // IPv4 filter does not match IPv6 prefix
+
+        assert!(filter_ipv6.match_prefix_type(&ipv6_prefix)); // IPv6 filter matches IPv6 prefix
+        assert!(!filter_ipv6.match_prefix_type(&ipv4_prefix)); // IPv6 filter does not match IPv4 prefix
+
+        assert!(filter_none.match_prefix_type(&ipv4_prefix)); // No filter matches IPv4 prefix
+        assert!(filter_none.match_prefix_type(&ipv6_prefix)); // No filter matches IPv6 prefix
+    }
+
+    #[test]
+    fn test_filter_match_regions() {
+        let region_filter = Filter {
+            regions: Some([Rc::from("us-east-1")].into_iter().collect()),
+            ..Default::default()
+        };
+        let no_region_filter = Filter::default();
+
+        let prefix1 = test_aws_ipv4_prefix();
+        let prefix2 = AwsIpPrefix {
+            region: Rc::from("us-west-1"),
+            ..test_aws_ipv4_prefix()
+        };
+
+        assert!(region_filter.match_regions(&prefix1)); // Region filter matches prefix with correct region
+        assert!(!region_filter.match_regions(&prefix2)); // Region filter does not match prefix with incorrect region
+
+        assert!(no_region_filter.match_regions(&prefix1)); // No region filter matches any prefix region
+        assert!(no_region_filter.match_regions(&prefix2)); // No region filter matches any prefix region
+    }
+
+    #[test]
+    fn test_filter_match_network_border_group() {
+        let network_border_group_filter = Filter {
+            network_border_groups: Some([Rc::from("us-east-1")].into_iter().collect()),
+            ..Default::default()
+        };
+        let no_network_border_group_filter = Filter::default();
+
+        let prefix1 = test_aws_ipv4_prefix();
+        let prefix2 = AwsIpPrefix {
+            network_border_group: Rc::from("us-west-1"),
+            ..test_aws_ipv4_prefix()
+        };
+
+        assert!(network_border_group_filter.match_network_border_groups(&prefix1)); // Network border group filter matches prefix with correct network border group
+        assert!(!network_border_group_filter.match_network_border_groups(&prefix2)); // Network border group filter does not match prefix with incorrect network border group
+
+        assert!(no_network_border_group_filter.match_network_border_groups(&prefix1)); // No network border group filter matches any prefix network border group
+        assert!(no_network_border_group_filter.match_network_border_groups(&prefix2));
+        // No network border group filter matches any prefix network border group
+    }
+
+    #[test]
+    fn test_filter_match_services() {
+        let service_filter = Filter {
+            services: Some([Rc::from("EC2")].into_iter().collect()),
+            ..Default::default()
+        };
+        let no_service_filter = Filter::default();
+
+        let prefix1 = AwsIpPrefix {
+            services: [Rc::from("EC2"), Rc::from("S3")].into_iter().collect(),
+            ..test_aws_ipv4_prefix()
+        };
+        let prefix2 = AwsIpPrefix {
+            services: [Rc::from("S3")].into_iter().collect(),
+            ..test_aws_ipv4_prefix()
+        };
+
+        assert!(service_filter.match_services(&prefix1)); // Service filter matches prefix containing service
+        assert!(!service_filter.match_services(&prefix2)); // Service filter does not match prefix not containing service
+
+        assert!(no_service_filter.match_services(&prefix1)); // No service filter matches any prefix
+        assert!(no_service_filter.match_services(&prefix2)); // No service filter matches any prefix
     }
 
     /*-----------------------------------------------------------------------------
