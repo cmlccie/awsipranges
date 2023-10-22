@@ -24,3 +24,43 @@ where
         .map(|naive_date_time| naive_date_time.and_utc())
         .map_err(serde::de::Error::custom)
 }
+
+/*-------------------------------------------------------------------------------------------------
+  Unit Tests
+-------------------------------------------------------------------------------------------------*/
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+    use serde::Serialize;
+    use serde_json::{json, Value};
+
+    #[derive(Serialize)]
+    struct TestDateTime {
+        #[serde(with = "super")]
+        datetime: DateTime<Utc>,
+    }
+
+    #[test]
+    fn test_serialize() {
+        let test_datetime = TestDateTime {
+            datetime: Utc.with_ymd_and_hms(2022, 1, 1, 0, 0, 0).unwrap(),
+        };
+
+        let serialized_value: Value = serde_json::to_value(&test_datetime).unwrap();
+        let expected_value: Value = json!({"datetime": "2022-01-01-00-00-00"});
+
+        assert_eq!(serialized_value, expected_value);
+    }
+
+    #[test]
+    fn test_deserialize() {
+        let test_datetime_json = r#"{"datetime": "2022-01-01-00-00-00"}"#;
+
+        let deserialized_value: Value = serde_json::from_str(test_datetime_json).unwrap();
+        let expected_value: Value = json!({"datetime": "2022-01-01-00-00-00"});
+
+        assert_eq!(deserialized_value, expected_value);
+    }
+}
