@@ -72,7 +72,31 @@ impl AwsIpRanges {
         &self.prefixes
     }
 
-    pub fn get_ip_network(&self, value: &IpNetwork) -> Option<BTreeSet<AwsIpPrefix>> {
+    pub fn get_prefix(&self, value: &IpNetwork) -> Option<AwsIpPrefix> {
+        self.prefixes.get(value).map(|prefix| prefix.clone())
+    }
+
+    pub fn get_longest_match_prefix(&self, value: &IpNetwork) -> Option<AwsIpPrefix> {
+        let lower_bound = match value {
+            IpNetwork::V4(_) => utils::ipnetwork::new_network_prefix(value, 8u8).unwrap(),
+            IpNetwork::V6(_) => utils::ipnetwork::new_network_prefix(value, 16u8).unwrap(),
+        };
+        let upper_bound = utils::ipnetwork::network_prefix(value);
+
+        for (_, aws_ip_prefix) in self
+            .prefixes
+            .range((Included(lower_bound), Included(upper_bound)))
+            .rev()
+        {
+            if utils::ipnetwork::is_supernet_of(aws_ip_prefix.prefix, *value) {
+                return Some(aws_ip_prefix.clone());
+            }
+        }
+
+        None
+    }
+
+    pub fn get_supernet_prefixes(&self, value: &IpNetwork) -> Option<BTreeSet<AwsIpPrefix>> {
         let mut aws_ip_prefixes: BTreeSet<AwsIpPrefix> = BTreeSet::new();
 
         let lower_bound = match value {
@@ -122,7 +146,7 @@ impl AwsIpRanges {
         let mut result_aws_ip_prefixes: BTreeSet<AwsIpPrefix> = BTreeSet::new();
 
         for prefix in values {
-            if let Some(aws_ip_prefixes) = self.get_ip_network(prefix) {
+            if let Some(aws_ip_prefixes) = self.get_supernet_prefixes(prefix) {
                 aws_ip_prefixes.iter().for_each(|aws_ip_prefix| {
                     result_aws_ip_prefixes.insert(aws_ip_prefix.clone());
                 });
@@ -624,15 +648,127 @@ mod tests {
     }
 
     #[test]
+    fn test_get_prefix() {
+        let aws_ip_ranges = test_aws_ip_ranges();
+
+        let prefix_in_range: IpNetwork = "10.0.0.0/8".parse().unwrap();
+        assert_eq!(
+            aws_ip_ranges.get_prefix(&prefix_in_range).unwrap().prefix,
+            prefix_in_range
+        );
+
+        let prefix_not_in_range: IpNetwork = "192.168.0.0/24".parse().unwrap();
+        assert_eq!(aws_ip_ranges.get_prefix(&prefix_not_in_range), None);
+    }
+
+    #[test]
+    fn test_get_longest_match_prefix() {
+        let aws_ip_ranges = test_aws_ip_ranges();
+
+        let prefix_in_range: IpNetwork = "10.0.0.0/32".parse().unwrap();
+        let longest_match: IpNetwork = "10.0.0.0/16".parse().unwrap();
+        assert_eq!(
+            aws_ip_ranges
+                .get_longest_match_prefix(&prefix_in_range)
+                .unwrap()
+                .prefix,
+            longest_match
+        );
+
+        let prefix_not_in_range: IpNetwork = "192.168.0.0/24".parse().unwrap();
+        assert_eq!(
+            aws_ip_ranges.get_longest_match_prefix(&prefix_not_in_range),
+            None
+        );
+    }
+
+    #[test]
+    fn test_get_supernet_prefixes() {
+        let aws_ip_ranges = test_aws_ip_ranges();
+
+        let prefix_in_range: IpNetwork = "10.0.0.0/24".parse().unwrap();
+        let supernet_prefixes = aws_ip_ranges
+            .get_supernet_prefixes(&prefix_in_range)
+            .unwrap();
+        assert_eq!(supernet_prefixes.len(), 2);
+        assert!(supernet_prefixes.contains(&test_aws_ipv4_prefix()));
+
+        let prefix_not_in_range: IpNetwork = "192.168.0.0/24".parse().unwrap();
+        assert_eq!(
+            aws_ip_ranges.get_longest_match_prefix(&prefix_not_in_range),
+            None
+        );
+    }
+
+    #[test]
     fn test_aws_ip_ranges_regions() {
-        let mut regions = BTreeSet::new();
-        regions.insert(Rc::from("us-east-1"));
-        regions.insert(Rc::from("us-west-1"));
+        let regions: BTreeSet<Rc<str>> = [Rc::from("us-east-1"), Rc::from("us-west-1")]
+            .into_iter()
+            .collect();
         let aws_ip_ranges = AwsIpRanges {
             regions: regions.clone(),
             ..Default::default()
         };
         assert_eq!(aws_ip_ranges.regions(), &regions);
+    }
+
+    #[test]
+    fn test_aws_ip_ranges_network_border_groups() {
+        let network_border_groups: BTreeSet<Rc<str>> =
+            [Rc::from("us-east-1"), Rc::from("us-west-1")]
+                .into_iter()
+                .collect();
+        let aws_ip_ranges = AwsIpRanges {
+            network_border_groups: network_border_groups.clone(),
+            ..Default::default()
+        };
+        assert_eq!(
+            aws_ip_ranges.network_border_groups(),
+            &network_border_groups
+        );
+    }
+
+    #[test]
+    fn test_aws_ip_ranges_services() {
+        let services: BTreeSet<Rc<str>> = [Rc::from("EC2"), Rc::from("S3")].into_iter().collect();
+        let aws_ip_ranges = AwsIpRanges {
+            services: services.clone(),
+            ..Default::default()
+        };
+        assert_eq!(aws_ip_ranges.services(), &services);
+    }
+
+    #[test]
+    fn test_aws_ip_ranges_get_region() {
+        let region: Rc<str> = Rc::from("us-east-1");
+        let aws_ip_ranges = AwsIpRanges {
+            regions: [region.clone()].into_iter().collect(),
+            ..Default::default()
+        };
+        assert_eq!(aws_ip_ranges.get_region("us-east-1").unwrap(), region);
+    }
+
+    #[test]
+    fn test_aws_ip_ranges_get_network_border_group() {
+        let network_border_group: Rc<str> = Rc::from("us-east-1");
+        let aws_ip_ranges = AwsIpRanges {
+            network_border_groups: [network_border_group.clone()].into_iter().collect(),
+            ..Default::default()
+        };
+        assert_eq!(
+            aws_ip_ranges.get_network_border_group("us-east-1").unwrap(),
+            network_border_group
+        );
+    }
+
+    #[test]
+    fn test_aws_ip_ranges_get_service() {
+        let service: Rc<str> = Rc::from("EC2");
+        let aws_ip_ranges = AwsIpRanges {
+            services: [service.clone()].into_iter().collect(),
+            ..Default::default()
+        };
+        assert_eq!(aws_ip_ranges.get_service("EC2").unwrap(), service);
     }
 
     #[test]
@@ -690,6 +826,22 @@ mod tests {
         assert!(search_results
             .prefixes_not_found
             .contains(&search_networks[5])); // No prefix match
+    }
+
+    #[test]
+    fn test_filter() {
+        let aws_ip_ranges = test_aws_ip_ranges();
+
+        let filter = Filter {
+            prefix_type: Some(PrefixType::IPv4),
+            regions: Some([Rc::from("us-west-1")].into_iter().collect()),
+            network_border_groups: Some([Rc::from("us-west-1")].into_iter().collect()),
+            services: Some([Rc::from("EC2")].into_iter().collect()),
+        };
+
+        let filtered_aws_ip_ranges = aws_ip_ranges.filter(&filter);
+
+        assert_eq!(filtered_aws_ip_ranges.prefixes.len(), 1);
     }
 
     /*-----------------------------------------------------------------------------
