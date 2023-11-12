@@ -72,11 +72,11 @@ impl AwsIpRanges {
         &self.prefixes
     }
 
-    pub fn get_prefix(&self, value: &IpNetwork) -> Option<AwsIpPrefix> {
-        self.prefixes.get(value).map(|prefix| prefix.clone())
+    pub fn get_prefix(&self, value: &IpNetwork) -> Option<&AwsIpPrefix> {
+        self.prefixes.get(value)
     }
 
-    pub fn get_longest_match_prefix(&self, value: &IpNetwork) -> Option<AwsIpPrefix> {
+    pub fn get_longest_match_prefix(&self, value: &IpNetwork) -> Option<&AwsIpPrefix> {
         let lower_bound = match value {
             IpNetwork::V4(_) => utils::ipnetwork::new_network_prefix(value, 8u8).unwrap(),
             IpNetwork::V6(_) => utils::ipnetwork::new_network_prefix(value, 16u8).unwrap(),
@@ -89,7 +89,7 @@ impl AwsIpRanges {
             .rev()
         {
             if utils::ipnetwork::is_supernet_of(aws_ip_prefix.prefix, *value) {
-                return Some(aws_ip_prefix.clone());
+                return Some(aws_ip_prefix);
             }
         }
 
