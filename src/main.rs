@@ -65,21 +65,17 @@ fn main() -> awsipranges::Result<()> {
         eprintln!("\nNo AWS IP Prefixes match the provided criteria.\n");
         std::process::exit(1);
     } else {
-        if args.output.prefix_table {
-            cli::output::prefix_table(display_aws_ip_ranges);
-        } else if args.output.cidr_format {
-            cli::output::prefixes_in_cidr_format(&display_aws_ip_ranges);
-        } else if args.output.netmask_format {
-            cli::output::prefixes_in_netmask_format(&display_aws_ip_ranges);
-        } else if args.output.regions {
-            cli::output::regions(&display_aws_ip_ranges);
-        } else if args.output.network_border_groups {
-            cli::output::network_border_groups(&display_aws_ip_ranges);
-        } else if args.output.services {
-            cli::output::services(&display_aws_ip_ranges);
-        } else {
-            // Default output
-            cli::output::prefix_table(display_aws_ip_ranges);
+        match args.output {
+            cli::OutputFormat::Table => cli::output::prefix_table(display_aws_ip_ranges),
+            cli::OutputFormat::Cidr => cli::output::prefixes_in_cidr_format(&display_aws_ip_ranges),
+            cli::OutputFormat::Netmask => {
+                cli::output::prefixes_in_netmask_format(&display_aws_ip_ranges)
+            }
+            cli::OutputFormat::Regions => cli::output::regions(&display_aws_ip_ranges),
+            cli::OutputFormat::NetworkBorderGroups => {
+                cli::output::network_border_groups(&display_aws_ip_ranges)
+            }
+            cli::OutputFormat::Services => cli::output::services(&display_aws_ip_ranges),
         };
     };
 

@@ -15,4 +15,5 @@ pub mod utils;
 --------------------------------------------------------------------------------------*/
 
 pub use args::Args;
+pub use args::OutputFormat;
 pub use core::{build_filter, parse_prefixes};

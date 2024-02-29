@@ -33,8 +33,10 @@ pub struct Args {
     #[arg(id = "SERVICE", short = 's', long = "service", num_args(1..))]
     pub include_services: Option<Vec<String>>,
 
-    #[command(flatten)]
-    pub output: Output,
+    /// Output format
+    #[clap(long, short)]
+    #[clap(value_enum, default_value_t=OutputFormat::Table)]
+    pub output: OutputFormat,
 
     /// Save the results to a CSV file
     #[arg(long = "csv")]
@@ -48,30 +50,40 @@ pub struct Args {
     pub search_cidrs: Option<Vec<String>>,
 }
 
-#[derive(clap::Args, Debug)]
-#[group(required = false, multiple = false)]
-pub struct Output {
-    /// Output: Prefix table (default)
-    #[arg(long = "table")]
-    pub prefix_table: bool,
-
-    /// Output: Prefix list in CIDR format
-    #[arg(long = "cidr")]
-    pub cidr_format: bool,
-
-    /// Output: Prefix list in netmask format
-    #[arg(long = "netmask")]
-    pub netmask_format: bool,
-
-    /// Output: Regions list
-    #[arg(long)]
-    pub regions: bool,
-
-    /// Output: Network Border Groups list
-    #[arg(long)]
-    pub network_border_groups: bool,
-
-    /// Output: Services list
-    #[arg(long)]
-    pub services: bool,
+#[derive(clap::ValueEnum, Clone, Debug)]
+pub enum OutputFormat {
+    Table,
+    Cidr,
+    Netmask,
+    Regions,
+    NetworkBorderGroups,
+    Services,
 }
+
+// #[derive(clap::Args, Debug)]
+// #[group(required = false, multiple = false)]
+// pub struct Output {
+//     /// Output: Prefix table (default)
+//     #[arg(long = "table")]
+//     pub prefix_table: bool,
+
+//     /// Output: Prefix list in CIDR format
+//     #[arg(long = "cidr")]
+//     pub cidr_format: bool,
+
+//     /// Output: Prefix list in netmask format
+//     #[arg(long = "netmask")]
+//     pub netmask_format: bool,
+
+//     /// Output: Regions list
+//     #[arg(long)]
+//     pub regions: bool,
+
+//     /// Output: Network Border Groups list
+//     #[arg(long)]
+//     pub network_border_groups: bool,
+
+//     /// Output: Services list
+//     #[arg(long)]
+//     pub services: bool,
+// }
