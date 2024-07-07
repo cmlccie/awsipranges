@@ -52,4 +52,4 @@ I frequently have need of getting answers from the AWS IP ranges. I published a 
 I appreciate the following teams and individuals without which this tool would not be possible or as easily constructed:
 
 - The AWS Networking team that publishes and maintains the [AWS IP address ranges](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-ranges.html).
-- Abhishek Chanda ([@achanda] (https://www.github.com/achanda)) for publishing the excellent [`ipnetwork`](https://crates.io/crates/ipnetwork) crate, which makes parsing and working with IPv4 and IPv6 CIDRs a breeze.
+- Abhishek Chanda ([@achanda](https://www.github.com/achanda)) for publishing the excellent [`ipnetwork`](https://crates.io/crates/ipnetwork) crate, which makes parsing and working with IPv4 and IPv6 CIDRs a breeze.
