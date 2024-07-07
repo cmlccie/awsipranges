@@ -2,13 +2,13 @@
 
 _Quickly query the AWS IP Ranges_
 
-[![License](https://img.shields.io/github/license/cmlccie/awsipranges)](https://github.com/cmlccie/awsipranges/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-BSD%E2%80%932%E2%80%93Clause%E2%80%93Patent-blue)](https://opensource.org/license/bsdpluspatent)
 [![Tests](https://github.com/cmlccie/awsipranges/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/cmlccie/awsipranges/actions/workflows/tests.yml)
 [![Code Coverage](https://codecov.io/gh/cmlccie/awsipranges/graph/badge.svg?token=2NS0NOYQ0Y)](https://codecov.io/gh/cmlccie/awsipranges)
 
 ---
 
-`awsipranges` allows you to filter, search, and use public [AWS IP address ranges](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-ranges.html) from the command line without writing complicated JSON parsing scripts or commands. This simple single-purpose CLI tool allows you to quickly answer questions like:
+`awsipranges` allows you to filter, search, and use public [AWS IP address ranges](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-ranges.html) from the command line without writing complicated JSON parsing scripts or commands. This single-purpose CLI tool allows you to quickly answer questions like:
 
 - What IP ranges are used by `<some-supported-service>` in `<some-region>`?
 - What services publish their IP ranges in the `ip-ranges.json` file?
@@ -45,11 +45,11 @@ cargo install --git https://github.com/cmlccie/awsipranges
 
 ## Why did I make this?
 
-I frequently have need of getting answers from the AWS IP ranges. I published a similar [Python library](https://github.com/aws-samples/awsipranges) when I worked at AWS, and I was learning Rust and needed something to build. 😎 This tool has been useful to me; perhaps it will be useful to you.
+I frequently have need of getting answers from the AWS IP ranges. I published a similar [Python library](https://github.com/aws-samples/awsipranges) when I worked at AWS. I was learning Rust and needed something to build! 😎 This tool has been useful to me; perhaps it will be useful to you.
 
 ## Acknowledgements
 
-I appreciate the following teams and individuals without which this tool would not be possible:
+I appreciate the following teams and individuals without which this tool would not be possible or as easily constructed:
 
 - The AWS Networking team that publishes and maintains the [AWS IP address ranges](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-ranges.html).
-- Abhishek Chanda (@achanda) for publishing the excellent [`ipnetwork`](https://crates.io/crates/ipnetwork) crate, which makes parsing and working with IPv4 and IPv6 CIDRs a breeze.
+- Abhishek Chanda ([@achanda] (https://www.github.com/achanda)) for publishing the excellent [`ipnetwork`](https://crates.io/crates/ipnetwork) crate, which makes parsing and working with IPv4 and IPv6 CIDRs a breeze.
