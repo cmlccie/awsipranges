@@ -1,0 +1,8 @@
+# Ignore everything
+*
+
+# Include the files needed to build the project
+!Cargo.toml
+!Cargo.lock
+!src/
+!demo/

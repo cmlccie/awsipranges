@@ -65,3 +65,7 @@ clean:
 	rm -rf target/
 	find . -name '*.rs.bk' -delete
 	find . -name '*.pdb' -delete
+
+demo:
+	docker build -f demo/Dockerfile -t awsipranges-demo:local .
+	docker run --rm -v $$(pwd)/demo:/vhs awsipranges-demo:local demo.tape
