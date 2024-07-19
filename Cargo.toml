@@ -2,7 +2,9 @@
 name = "awsipranges"
 description = "Quickly query the AWS IP Ranges"
 authors = ["Chris Lunsford <cm@lunsford.io>"]
-version = "0.5.1"
+license = "BSD-2-Clause-Patent"
+repository = "https://github.com/cmlccie/awsipranges"
+version = "0.5.2"
 edition = "2021"
 
 [dependencies]
