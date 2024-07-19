@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
   Parse JSON
 -------------------------------------------------------------------------------------------------*/
 
-pub fn parse<'j>(json: &'j str) -> Result<JsonIpRanges<'j>> {
+pub fn parse(json: &str) -> Result<JsonIpRanges<'_>> {
     Ok(serde_json::from_str(json)?)
 }
 
@@ -95,7 +95,7 @@ mod tests {
         let sync_token = create_date.timestamp().to_string();
         let expected_value = JsonIpRanges {
             sync_token: &sync_token,
-            create_date: create_date.clone(),
+            create_date,
             prefixes: vec![JsonIpPrefix {
                 ip_prefix: "10.0.0.0/8".parse().unwrap(),
                 region: "us-east-1",

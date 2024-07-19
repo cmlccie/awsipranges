@@ -1,10 +1,9 @@
 use crate::core::awsipranges::AwsIpRanges;
 use crate::core::errors::Result;
 use log::{info, warn};
-use reqwest;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /*-------------------------------------------------------------------------------------------------
   Primary Interface
@@ -27,6 +26,12 @@ pub struct BlockingClient {
     cache_time: u64,
 }
 
+impl Default for BlockingClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BlockingClient {
     pub fn new() -> Self {
         // Default the cache file path to ${HOME}/.aws/ip-ranges.json
@@ -39,7 +44,7 @@ impl BlockingClient {
                 .unwrap_or("https://ip-ranges.amazonaws.com/ip-ranges.json".to_string()),
             cache_file: env::var("AWSIPRANGES_CACHE_FILE")
                 .ok()
-                .and_then(|env_var| PathBuf::try_from(env_var).ok())
+                .map(PathBuf::from)
                 .unwrap_or(default_cache_file),
             cache_time: env::var("AWSIPRANGES_CACHE_TIME")
                 .ok()
@@ -51,7 +56,7 @@ impl BlockingClient {
     /// Retrieves, parses, and returns boxed [AwsIpRanges]. Uses locally cached JSON
     /// data, when available and fresh. Requests the AWS IP Ranges JSON data from the
     /// URL when the local cache is stale or unavailable.
-    pub fn get_ranges(self: &Self) -> Result<Box<AwsIpRanges>> {
+    pub fn get_ranges(&self) -> Result<Box<AwsIpRanges>> {
         let json = self.get_json()?;
         AwsIpRanges::from_json(&json)
     }
@@ -67,27 +72,27 @@ impl BlockingClient {
 
     /// Set the file path used to cache the AWS IP Ranges JSON data; defaults
     /// to `${HOME}/.aws/ip-ranges.json`.
-    pub fn cache_file<'s>(&'s mut self, cache_file: &PathBuf) -> &'s Self {
-        self.cache_file = cache_file.clone();
+    pub fn cache_file<'s>(&'s mut self, cache_file: &Path) -> &'s Self {
+        self.cache_file = cache_file.to_path_buf();
         self
     }
 
-    /// Set the cache-time durration - the amount of time (in seconds) the
+    /// Set the cache-time duration - the amount of time (in seconds) the
     /// locally cached AWS IP Ranges JSON data is considered fresh; defaults to
     /// 24 hours (`86400` seconds). When the elapsed time (the difference
     /// between the current system time and cache file's modified timestamp) is
     /// greater than the configured `cache_time`, calls to `get_ranges()` will
     /// attempt to refresh the cached JSON data from the AWS IP Ranges URL.
-    pub fn cache_time<'s>(&'s mut self, cache_time: u64) -> &'s Self {
+    pub fn cache_time(&mut self, cache_time: u64) -> &Self {
         self.cache_time = cache_time;
         self
     }
 
-    fn get_json(self: &Self) -> Result<String> {
+    fn get_json(&self) -> Result<String> {
         info!("Cache file path {:?}", &self.cache_file);
         info!("Cache time {} seconds", self.cache_time);
 
-        if let Ok(_) = fs::canonicalize(&self.cache_file) {
+        if fs::canonicalize(&self.cache_file).is_ok() {
             info!("Cache file exists");
             let elapsed = fs::metadata(&self.cache_file)?.modified()?.elapsed()?;
             if elapsed.as_secs() <= self.cache_time {
@@ -116,21 +121,19 @@ impl BlockingClient {
         }
     }
 
-    fn get_json_from_url(self: &Self) -> Result<String> {
+    fn get_json_from_url(&self) -> Result<String> {
         let response = reqwest::blocking::get(&self.url)?;
         Ok(response.text()?)
     }
 
-    fn cache_json_to_file(self: &Self, json: &str) -> Result<()> {
+    fn cache_json_to_file(&self, json: &str) -> Result<()> {
         // Ensure parent directories exist
-        self.cache_file
-            .parent()
-            .map(|parent| fs::create_dir_all(parent));
+        self.cache_file.parent().map(fs::create_dir_all);
 
         Ok(fs::write(&self.cache_file, json)?)
     }
 
-    fn get_json_from_file(self: &Self) -> Result<String> {
+    fn get_json_from_file(&self) -> Result<String> {
         Ok(fs::read_to_string(&self.cache_file)?)
     }
 }
@@ -167,9 +170,9 @@ mod tests {
 
     #[test]
     fn test_set_cache_file() {
-        let test_cach_file: PathBuf = [".", "scratch", "ip-ranges.json"].iter().collect();
+        let test_cache_file: PathBuf = [".", "scratch", "ip-ranges.json"].iter().collect();
         let mut client: BlockingClient = BlockingClient::new();
-        client.cache_file(&test_cach_file);
+        client.cache_file(&test_cache_file);
         let aws_ip_ranges = client.get_ranges();
         assert!(aws_ip_ranges.is_ok());
     }

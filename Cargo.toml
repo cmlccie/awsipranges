@@ -2,7 +2,7 @@
 name = "awsipranges"
 description = "Quickly query the AWS IP Ranges"
 authors = ["Chris Lunsford <cm@lunsford.io>"]
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 
 [dependencies]

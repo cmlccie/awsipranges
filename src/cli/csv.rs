@@ -10,7 +10,7 @@ pub fn save(aws_ip_ranges: &AwsIpRanges, path: &PathBuf) -> Result<()> {
     let mut writer = csv::Writer::from_path(path)?;
 
     // Write header
-    writer.serialize(&[
+    writer.serialize([
         "AWS IP Prefix",
         "Region",
         "Network Border Group",
@@ -26,7 +26,7 @@ pub fn save(aws_ip_ranges: &AwsIpRanges, path: &PathBuf) -> Result<()> {
             aws_ip_prefix
                 .services
                 .iter()
-                .map(|service| service.clone())
+                .cloned()
                 .collect::<Vec<Rc<str>>>()
                 .join(", "),
         );

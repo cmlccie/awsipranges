@@ -83,17 +83,11 @@ impl AwsIpRanges {
         };
         let upper_bound = utils::ipnetwork::network_prefix(value);
 
-        for (_, aws_ip_prefix) in self
-            .prefixes
+        self.prefixes
             .range((Included(lower_bound), Included(upper_bound)))
             .rev()
-        {
-            if utils::ipnetwork::is_supernet_of(aws_ip_prefix.prefix, *value) {
-                return Some(aws_ip_prefix);
-            }
-        }
-
-        None
+            .map(|(_, aws_ip_prefix)| aws_ip_prefix)
+            .find(|&aws_ip_prefix| utils::ipnetwork::is_supernet_of(aws_ip_prefix.prefix, *value))
     }
 
     pub fn get_supernet_prefixes(&self, value: &IpNetwork) -> Option<BTreeSet<AwsIpPrefix>> {
@@ -114,7 +108,7 @@ impl AwsIpRanges {
             }
         }
 
-        if aws_ip_prefixes.len() > 0 {
+        if !aws_ip_prefixes.is_empty() {
             Some(aws_ip_prefixes)
         } else {
             None
@@ -161,7 +155,10 @@ impl AwsIpRanges {
         }
 
         search_results.aws_ip_ranges = Box::new(AwsIpRanges::from(result_aws_ip_prefixes));
-        search_results.aws_ip_ranges.sync_token = self.sync_token.clone();
+        search_results
+            .aws_ip_ranges
+            .sync_token
+            .clone_from(&self.sync_token);
         search_results.aws_ip_ranges.create_date = self.create_date;
 
         search_results
@@ -171,18 +168,18 @@ impl AwsIpRanges {
         let filtered_aws_ip_prefix_map: BTreeMap<IpNetwork, AwsIpPrefix> = self
             .prefixes
             .iter()
-            .filter(|(_, aws_ip_prefix)| filter.include_prefix(*aws_ip_prefix))
+            .filter(|(_, aws_ip_prefix)| filter.include_prefix(aws_ip_prefix))
             .map(|(prefix, aws_ip_prefix)| (*prefix, aws_ip_prefix.clone()))
             .collect();
 
         let mut aws_ip_ranges = Box::new(AwsIpRanges::from(filtered_aws_ip_prefix_map));
-        aws_ip_ranges.sync_token = self.sync_token.clone();
+        aws_ip_ranges.sync_token.clone_from(&self.sync_token);
         aws_ip_ranges.create_date = self.create_date;
 
         aws_ip_ranges
     }
 
-    pub(crate) fn from_json(json: &String) -> Result<Box<AwsIpRanges>> {
+    pub(crate) fn from_json(json: &str) -> Result<Box<AwsIpRanges>> {
         let json_ip_ranges = json::parse(json)?;
 
         let mut aws_ip_ranges = Box::new(AwsIpRanges::default());
@@ -200,7 +197,7 @@ impl AwsIpRanges {
                     .iter()
                     .map(|ipv6_prefix| ipv6_prefix.region),
             )
-            .map(|region| Rc::from(region))
+            .map(Rc::from)
             .collect();
 
         aws_ip_ranges.network_border_groups = json_ip_ranges
@@ -213,7 +210,7 @@ impl AwsIpRanges {
                     .iter()
                     .map(|ipv6_prefix| ipv6_prefix.network_border_group),
             )
-            .map(|network_border_group| Rc::from(network_border_group))
+            .map(Rc::from)
             .collect();
 
         aws_ip_ranges.services = json_ip_ranges
@@ -226,7 +223,7 @@ impl AwsIpRanges {
                     .iter()
                     .map(|ipv6_prefix| ipv6_prefix.service),
             )
-            .map(|service| Rc::from(service))
+            .map(Rc::from)
             .collect();
 
         for json_ipv4_prefix in &json_ip_ranges.prefixes {
@@ -364,7 +361,7 @@ impl From<BTreeMap<IpNetwork, AwsIpPrefix>> for AwsIpRanges {
             .prefixes
             .values()
             .flat_map(|prefix| &prefix.services)
-            .map(|service| service.clone())
+            .cloned()
             .collect();
 
         aws_ip_ranges
@@ -406,10 +403,8 @@ impl Filter {
         if let Some(prefix_type) = self.prefix_type {
             if prefix_type.is_ipv4() && aws_ip_prefix.prefix.is_ipv4() {
                 true
-            } else if prefix_type.is_ipv6() && aws_ip_prefix.prefix.is_ipv6() {
-                true
             } else {
-                false
+                prefix_type.is_ipv6() && aws_ip_prefix.prefix.is_ipv6()
             }
         } else {
             trace!("No `prefix_type` filter");
@@ -595,8 +590,8 @@ mod tests {
         assert!(prefix2 < prefix3); // Lower prefix address is less than higher prefix address
         assert!(prefix1 < prefix4); // Lower region is less than higher region
         assert!(prefix1 < prefix5); // Lower network border group is less than higher network border group
-        assert!(prefix1 < prefix6); // Lexographically-equal shorter service set is less than longer set
-        assert!(prefix6 < prefix7); // Lexographically-lower service is less than higher service
+        assert!(prefix1 < prefix6); // Lexicographically-equal shorter service set is less than longer set
+        assert!(prefix6 < prefix7); // Lexicographically-lower service is less than higher service
     }
 
     #[test]
@@ -641,7 +636,7 @@ mod tests {
     fn test_aws_ip_ranges_create_date() {
         let create_date = Utc::now();
         let aws_ip_ranges = AwsIpRanges {
-            create_date: create_date.clone(),
+            create_date,
             ..Default::default()
         };
         assert_eq!(aws_ip_ranges.create_date(), &create_date);

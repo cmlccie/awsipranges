@@ -10,7 +10,7 @@ use std::rc::Rc;
 --------------------------------------------------------------------------------------*/
 
 pub fn get_rc_str_from_set(value: &str, set: &BTreeSet<Rc<str>>) -> Option<Rc<str>> {
-    set.get(value).map(|item| Rc::clone(item))
+    set.get(value).map(Rc::clone)
 }
 
 /*--------------------------------------------------------------------------------------
@@ -27,7 +27,7 @@ pub mod ipnetwork {
         `0`). It does provide a network() method that will extract the network IP.
 
         These helper functions extract the network prefix from an IpNetwork and
-        build a new network prefiex from an existing IpNetwork with a specified
+        build a new network prefix from an existing IpNetwork with a specified
         number of mask bits.
     */
 

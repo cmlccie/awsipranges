@@ -94,6 +94,5 @@ pub fn build_filter(args: &cli::Args, aws_ip_ranges: &AwsIpRanges) -> awsiprange
         regions,
         network_border_groups,
         services,
-        ..awsipranges::Filter::default()
     }
 }

@@ -1,4 +1,4 @@
-.PHONY: update format lint test build release install uninstall clean
+.PHONY: update format lint test build release install uninstall clean demo
 
 .DEFAULT_GOAL := build
 
@@ -18,6 +18,7 @@ line-count:
 lint:
 	cargo fmt --check
 	cargo check
+	cargo clippy
 
 tests:
 	RUST_BACKTRACE=1 cargo test

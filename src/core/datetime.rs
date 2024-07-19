@@ -5,7 +5,7 @@ use serde::{self, Deserialize, Deserializer, Serializer};
   DateTime Format
 -------------------------------------------------------------------------------------------------*/
 
-const AWS_IP_RANGES_DATETIME_FORMAT: &'static str = "%Y-%m-%d-%H-%M-%S";
+const AWS_IP_RANGES_DATETIME_FORMAT: &str = "%Y-%m-%d-%H-%M-%S";
 
 pub fn serialize<S>(date: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -48,7 +48,7 @@ mod tests {
             datetime: Utc.with_ymd_and_hms(2022, 1, 1, 0, 0, 0).unwrap(),
         };
 
-        let serialized_value: Value = serde_json::to_value(&test_datetime).unwrap();
+        let serialized_value: Value = serde_json::to_value(test_datetime).unwrap();
         let expected_value: Value = json!({"datetime": "2022-01-01-00-00-00"});
 
         assert_eq!(serialized_value, expected_value);

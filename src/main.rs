@@ -43,8 +43,8 @@ fn main() -> awsipranges::Result<()> {
     .then(|| cli::build_filter(&args, &aws_ip_ranges));
 
     let filtered_results = match (&search_results, &filter) {
-        (Some(search_results), Some(filter)) => Some(search_results.aws_ip_ranges.filter(&filter)),
-        (None, Some(filter)) => Some(aws_ip_ranges.filter(&filter)),
+        (Some(search_results), Some(filter)) => Some(search_results.aws_ip_ranges.filter(filter)),
+        (None, Some(filter)) => Some(aws_ip_ranges.filter(filter)),
         _ => None,
     };
 
@@ -54,8 +54,7 @@ fn main() -> awsipranges::Result<()> {
         .or(search_results
             .as_ref()
             .map(|search_results| &search_results.aws_ip_ranges))
-        .or(Some(&aws_ip_ranges))
-        .unwrap();
+        .unwrap_or(&aws_ip_ranges);
 
     // Log CIDR search results
     cli::log::search_results(&search_cidrs, &search_results);
@@ -67,21 +66,21 @@ fn main() -> awsipranges::Result<()> {
     } else {
         match args.output {
             cli::OutputFormat::Table => cli::output::prefix_table(display_aws_ip_ranges),
-            cli::OutputFormat::Cidr => cli::output::prefixes_in_cidr_format(&display_aws_ip_ranges),
+            cli::OutputFormat::Cidr => cli::output::prefixes_in_cidr_format(display_aws_ip_ranges),
             cli::OutputFormat::Netmask => {
-                cli::output::prefixes_in_netmask_format(&display_aws_ip_ranges)
+                cli::output::prefixes_in_netmask_format(display_aws_ip_ranges)
             }
-            cli::OutputFormat::Regions => cli::output::regions(&display_aws_ip_ranges),
+            cli::OutputFormat::Regions => cli::output::regions(display_aws_ip_ranges),
             cli::OutputFormat::NetworkBorderGroups => {
-                cli::output::network_border_groups(&display_aws_ip_ranges)
+                cli::output::network_border_groups(display_aws_ip_ranges)
             }
-            cli::OutputFormat::Services => cli::output::services(&display_aws_ip_ranges),
+            cli::OutputFormat::Services => cli::output::services(display_aws_ip_ranges),
         };
     };
 
     // Save results to CSV file
     if let Some(csv_file_path) = args.csv_file {
-        cli::csv::save(&display_aws_ip_ranges, &csv_file_path)?;
+        cli::csv::save(display_aws_ip_ranges, &csv_file_path)?;
     };
 
     Ok(())
