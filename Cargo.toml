@@ -5,7 +5,7 @@ authors = ["Chris Lunsford <cm@lunsford.io>"]
 license = "BSD-2-Clause-Patent"
 repository = "https://github.com/cmlccie/awsipranges"
 documentation = "https://docs.rs/awsipranges/latest/awsipranges/"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 
 [dependencies]
