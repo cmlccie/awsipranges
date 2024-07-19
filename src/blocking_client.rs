@@ -9,9 +9,33 @@ use std::path::{Path, PathBuf};
   Primary Interface
 -------------------------------------------------------------------------------------------------*/
 
-/// Retrieves and parses the AWS IP Ranges, returning a boxed [AwsIpRanges] object that
-/// allows you to quickly query ([search](AwsIpRanges::search()), [filter](AwsIpRanges::filter()),
+/// _**Primary library interface**_ that allows you to quickly retrieve and parse the AWS IP
+/// Ranges. Returns a boxed [AwsIpRanges] object that allows you to quickly query
+/// ([search](AwsIpRanges::search()), [filter](AwsIpRanges::filter()),
 /// etc.) the AWS IP Ranges data.
+///
+/// ```
+/// use ipnetwork::IpNetwork;
+///
+/// // Get the AWS IP Ranges
+/// let aws_ip_ranges = awsipranges::get_ranges().unwrap();
+///
+/// // Search for IP Prefixes
+/// let search_prefixes: Vec<IpNetwork> = vec!["3.141.102.225".parse().unwrap()];
+/// let search_results = aws_ip_ranges.search(search_prefixes.iter());
+///
+/// // Filter the AWS IP Ranges
+/// let region = aws_ip_ranges.get_region("us-east-2").unwrap();
+/// let service = aws_ip_ranges.get_service("S3").unwrap();
+///
+/// let filter = awsipranges::Filter {
+///     prefix_type: Some(awsipranges::PrefixType::IPv4),
+///     regions: Some(vec![region].into_iter().collect()),
+///     network_border_groups: None,
+///     services: Some(vec![service].into_iter().collect()),
+/// };
+/// let filtered_results = aws_ip_ranges.filter(&filter);
+/// ```
 pub fn get_ranges() -> Result<Box<AwsIpRanges>> {
     BlockingClient::new().get_ranges()
 }
@@ -20,6 +44,17 @@ pub fn get_ranges() -> Result<Box<AwsIpRanges>> {
   Blocking Client
 -------------------------------------------------------------------------------------------------*/
 
+/// A synchronous (blocking) client for retrieving and caching the AWS IP Ranges JSON data. You can
+/// use the client to customize the URL used to retrieve the JSON file, the file path used to cache
+/// the data, and the cache-time duration.
+/// ```
+/// let mut client = awsipranges::BlockingClient::new();
+/// client.url("https://ip-ranges.amazonaws.com/ip-ranges.json");
+/// client.cache_file("/tmp/ip-ranges.json");
+/// client.cache_time(60 * 60); // 1 hour
+///
+/// let aws_ip_ranges = client.get_ranges();
+/// ```
 pub struct BlockingClient {
     url: String,
     cache_file: PathBuf,
@@ -53,9 +88,9 @@ impl BlockingClient {
         }
     }
 
-    /// Retrieves, parses, and returns boxed [AwsIpRanges]. Uses locally cached JSON
-    /// data, when available and fresh. Requests the AWS IP Ranges JSON data from the
-    /// URL when the local cache is stale or unavailable.
+    /// Retrieves, parses, and returns a boxed [AwsIpRanges] object. Uses locally cached
+    /// JSON data, when available and fresh. Requests the AWS IP Ranges JSON data from
+    /// the URL when the local cache is stale or unavailable.
     pub fn get_ranges(&self) -> Result<Box<AwsIpRanges>> {
         let json = self.get_json()?;
         AwsIpRanges::from_json(&json)
@@ -72,8 +107,8 @@ impl BlockingClient {
 
     /// Set the file path used to cache the AWS IP Ranges JSON data; defaults
     /// to `${HOME}/.aws/ip-ranges.json`.
-    pub fn cache_file<'s>(&'s mut self, cache_file: &Path) -> &'s Self {
-        self.cache_file = cache_file.to_path_buf();
+    pub fn cache_file<P: AsRef<Path>>(&'_ mut self, cache_file: P) -> &'_ Self {
+        self.cache_file = cache_file.as_ref().to_path_buf();
         self
     }
 

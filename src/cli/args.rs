@@ -59,31 +59,3 @@ pub enum OutputFormat {
     NetworkBorderGroups,
     Services,
 }
-
-// #[derive(clap::Args, Debug)]
-// #[group(required = false, multiple = false)]
-// pub struct Output {
-//     /// Output: Prefix table (default)
-//     #[arg(long = "table")]
-//     pub prefix_table: bool,
-
-//     /// Output: Prefix list in CIDR format
-//     #[arg(long = "cidr")]
-//     pub cidr_format: bool,
-
-//     /// Output: Prefix list in netmask format
-//     #[arg(long = "netmask")]
-//     pub netmask_format: bool,
-
-//     /// Output: Regions list
-//     #[arg(long)]
-//     pub regions: bool,
-
-//     /// Output: Network Border Groups list
-//     #[arg(long)]
-//     pub network_border_groups: bool,
-
-//     /// Output: Services list
-//     #[arg(long)]
-//     pub services: bool,
-// }

@@ -14,11 +14,20 @@ use std::rc::Rc;
   AWS IP Prefix
 -------------------------------------------------------------------------------------------------*/
 
+/// AWS IP Prefix record containing the IP prefix, region, network border group, and services
+/// associated with the prefix.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct AwsIpPrefix {
+    /// IPv4 or IPv6 prefix.
     pub prefix: IpNetwork,
+
+    /// AWS region the IP prefix is associated with.
     pub region: Rc<str>,
+
+    /// Network border group the IP prefix is associated with.
     pub network_border_group: Rc<str>,
+
+    /// AWS services that use the IP prefix.
     pub services: BTreeSet<Rc<str>>,
 }
 
@@ -26,6 +35,9 @@ pub struct AwsIpPrefix {
   AWS IP Ranges
 -------------------------------------------------------------------------------------------------*/
 
+/// Collection of AWS IP ranges that provides methods to search and filter the prefixes and
+/// extract information about the regions, network border groups, and services represented in the
+/// collection.
 #[derive(Clone, Debug, Default)]
 pub struct AwsIpRanges {
     pub(crate) sync_token: String,
@@ -39,43 +51,42 @@ pub struct AwsIpRanges {
 }
 
 impl AwsIpRanges {
-    /// The "sync token" is a string containing the publication time for the current set of AWS IP
-    /// Ranges, in Unix epoch time format.
-    ///
-    /// ```
-    /// # let aws_ip_ranges = awsipranges::get_ranges()?;
-    /// let sync_token: &String = aws_ip_ranges.sync_token();
-    /// println!("Sync Token: {sync_token}");
-    /// # Ok::<(), awsipranges::Error>(())
-    /// ```
+    /// Publication time of the current set of AWS IP Ranges in Unix epoch time format.
     pub fn sync_token(&self) -> &String {
         &self.sync_token
     }
 
+    /// Publication time of the current set of AWS IP Ranges in UTC `DateTime` format.
     pub fn create_date(&self) -> &DateTime<Utc> {
         &self.create_date
     }
 
+    /// AWS regions represented in the current set of AWS IP Ranges.
     pub fn regions(&self) -> &BTreeSet<Rc<str>> {
         &self.regions
     }
 
+    /// Network border groups represented in the current set of AWS IP Ranges.
     pub fn network_border_groups(&self) -> &BTreeSet<Rc<str>> {
         &self.network_border_groups
     }
 
+    /// AWS services represented in the current set of AWS IP Ranges.
     pub fn services(&self) -> &BTreeSet<Rc<str>> {
         &self.services
     }
 
+    /// Map of [IpNetwork] CIDRs to [AwsIpPrefix] records.
     pub fn prefixes(&self) -> &BTreeMap<IpNetwork, AwsIpPrefix> {
         &self.prefixes
     }
 
+    /// Get the [AwsIpPrefix] record for the provided [IpNetwork] CIDR.
     pub fn get_prefix(&self, value: &IpNetwork) -> Option<&AwsIpPrefix> {
         self.prefixes.get(value)
     }
 
+    /// Get the longest matching [AwsIpPrefix] record for the provided [IpNetwork] CIDR.
     pub fn get_longest_match_prefix(&self, value: &IpNetwork) -> Option<&AwsIpPrefix> {
         let lower_bound = match value {
             IpNetwork::V4(_) => utils::ipnetwork::new_network_prefix(value, 8u8).unwrap(),
@@ -90,6 +101,7 @@ impl AwsIpRanges {
             .find(|&aws_ip_prefix| utils::ipnetwork::is_supernet_of(aws_ip_prefix.prefix, *value))
     }
 
+    /// Get all [AwsIpPrefix] records that are supernets of the provided [IpNetwork] CIDR.
     pub fn get_supernet_prefixes(&self, value: &IpNetwork) -> Option<BTreeSet<AwsIpPrefix>> {
         let mut aws_ip_prefixes: BTreeSet<AwsIpPrefix> = BTreeSet::new();
 
@@ -115,18 +127,22 @@ impl AwsIpRanges {
         }
     }
 
+    /// Get a reference-counted string (`Rc<str>`) region for the provided region name.
     pub fn get_region(&self, value: &str) -> Option<Rc<str>> {
         utils::get_rc_str_from_set(value, &self.regions)
     }
 
+    /// Get a reference-counted string (`Rc<str>`) network border group for the provided network border group name.
     pub fn get_network_border_group(&self, value: &str) -> Option<Rc<str>> {
         utils::get_rc_str_from_set(value, &self.network_border_groups)
     }
 
+    /// Get a reference-counted string (`Rc<str>`) service for the provided service name.
     pub fn get_service(&self, value: &str) -> Option<Rc<str>> {
         utils::get_rc_str_from_set(value, &self.services)
     }
 
+    /// Search for the AWS IP Prefixes that contain the provided [IpNetwork] CIDRs.
     pub fn search<'p, P>(&self, values: P) -> Box<SearchResults>
     where
         P: Iterator<Item = &'p IpNetwork>,
@@ -164,6 +180,7 @@ impl AwsIpRanges {
         search_results
     }
 
+    /// Filter the AWS IP Prefixes using the provided `Filter`.
     pub fn filter(&self, filter: &Filter) -> Box<AwsIpRanges> {
         let filtered_aws_ip_prefix_map: BTreeMap<IpNetwork, AwsIpPrefix> = self
             .prefixes
@@ -372,10 +389,18 @@ impl From<BTreeMap<IpNetwork, AwsIpPrefix>> for AwsIpRanges {
   Search Results
 -----------------------------------------------------------------------------*/
 
+/// Search results containing the matching [AwsIpRanges], a map of found
+/// prefixes, and the set of prefixes not found in the AWS IP Ranges.
 #[derive(Clone, Debug, Default)]
 pub struct SearchResults {
+    /// [AwsIpRanges] object containing the matching AWS IP Prefixes.
     pub aws_ip_ranges: Box<AwsIpRanges>,
+
+    /// Map of found [IpNetwork] prefixes to the sets of [AwsIpPrefix] records
+    /// that contain the prefixes.
     pub prefix_matches: BTreeMap<IpNetwork, BTreeSet<AwsIpPrefix>>,
+
+    /// Set of [IpNetwork] prefixes not found in the AWS IP Ranges.
     pub prefixes_not_found: BTreeSet<IpNetwork>,
 }
 
@@ -383,6 +408,8 @@ pub struct SearchResults {
   Filter
 --------------------------------------------------------------------------------------*/
 
+/// Filter used to include AWS IP Prefixes based on the prefix type (IPv4/IPv6),
+/// regions, network border groups, and services associated with the prefixes.
 #[derive(Debug, Default)]
 pub struct Filter {
     /// Only include IPv4 or IPv6 AWS IP Prefixes.
@@ -457,6 +484,7 @@ impl Filter {
   IP Prefix Type
 -----------------------------------------------------------------------------*/
 
+/// IP prefix type (IPv4 or IPv6) used to filter the AWS IP Prefixes.
 #[derive(Debug, Clone, Copy)]
 pub enum PrefixType {
     IPv4,
