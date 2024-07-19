@@ -3,6 +3,8 @@
 _Quickly query the AWS IP Ranges_
 
 [![License](https://img.shields.io/badge/license-BSD%E2%80%932%E2%80%93Clause%E2%80%93Patent-blue)](https://opensource.org/license/bsdpluspatent)
+[![Crates.io Version](https://img.shields.io/crates/v/awsipranges)](https://crates.io/crates/awsipranges)
+[![docs.rs](https://img.shields.io/docsrs/awsipranges)](https://docs.rs/awsipranges/latest/awsipranges/)
 [![Tests](https://github.com/cmlccie/awsipranges/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/cmlccie/awsipranges/actions/workflows/tests.yml)
 [![Code Coverage](https://codecov.io/gh/cmlccie/awsipranges/graph/badge.svg?token=2NS0NOYQ0Y)](https://codecov.io/gh/cmlccie/awsipranges)
 
@@ -40,7 +42,7 @@ You could get answers to some of these ☝️ questions by [filtering the JSON f
 To build and install the latest `awsipranges` CLI from source, you will need the [Rust toolchain installed](https://www.rust-lang.org/tools/install) on your system, and then you can simply run:
 
 ```bash
-cargo install --git https://github.com/cmlccie/awsipranges
+cargo install awsipranges
 ```
 
 ## Why did I make this?
