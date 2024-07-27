@@ -3,10 +3,17 @@ name = "awsipranges"
 description = "Quickly query the AWS IP Ranges"
 authors = ["Chris Lunsford <cm@lunsford.io>"]
 license = "BSD-2-Clause-Patent"
+homepage = "https://github.com/cmlccie/awsipranges"
 repository = "https://github.com/cmlccie/awsipranges"
 documentation = "https://docs.rs/awsipranges/latest/awsipranges/"
 version = "0.5.3"
 edition = "2021"
+
+[package.metadata.wix]
+upgrade-guid = "678FEBC6-FF95-4E28-98D3-E955792A85EE"
+path-guid = "759EEE18-34F3-43EE-8C22-0F9711B9BCD0"
+license = false
+eula = false
 
 [dependencies]
 chrono = { version = "0.4.26", features = ["serde"] }
@@ -22,3 +29,35 @@ reqwest = { version = "0.11.18", features = ["json", "blocking"] }
 serde = { version = "1.0.183", features = ["derive", "rc"] }
 serde_json = "1.0.104"
 stderrlog = "0.5.4"
+
+
+# --------------------------------------------------------------------------------------
+# Cargo Dist
+# --------------------------------------------------------------------------------------
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+# Config for 'cargo dist'
+[workspace.metadata.dist]
+# The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.19.1"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = ["shell", "powershell", "homebrew", "msi"]
+# A GitHub repo to push Homebrew formulas to
+tap = "cmlccie/tap"
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "x86_64-pc-windows-msvc"]
+# Path that installers should place binaries in
+install-path = "CARGO_HOME"
+# Publish jobs to run in CI
+publish-jobs = ["homebrew"]
+# Publish jobs to run in CI
+pr-run-mode = "plan"
+# Whether to install an updater program
+install-updater = false
+# Skip checking whether the specified configuration files are up to date
+allow-dirty = ["ci"]

@@ -1,50 +1,55 @@
-name: tests
+name: Tests
 on:
-  - push
-  - pull_request
-  - workflow_dispatch
+  push:
+    branches:
+      - "!main"
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
-  test:
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-14
-          - macos-13
-
-    name: tests-${{ matrix.os }}
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
 
     env:
       RUST_BACKTRACE: full
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: true
 
-    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           default: true
+          components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
 
       - uses: mozilla-actions/sccache-action@v0.0.3
 
-      - name: Install Code Coverage Dependencies
+      - name: Install code coverage dependencies
         run: |
           cargo install grcov
           rustup component add llvm-tools-preview
 
-      - name: Test w/Coverage
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check code formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint code
+        run: cargo clippy
+
+      - name: Test w/coverage
         run: make coverage
 
-      - name: Upload Coverage Report
-        if: matrix.os == 'ubuntu-latest'
+      - name: Upload coverage report
         uses: codecov/codecov-action@v3
+        if: github.ref == 'refs/heads/main'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./target/coverage/tests.lcov
-          name: awsipranges-rust
+          name: awsipranges
