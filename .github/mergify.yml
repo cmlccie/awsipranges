@@ -4,7 +4,7 @@ pull_request_rules:
       - author=dependabot[bot]
     actions:
       merge:
-        method: squash
+        method: merge
 
   - name: Automatic update to the main branch for pull requests
     conditions:
