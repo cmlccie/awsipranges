@@ -1,9 +1,10 @@
 use crate::core::awsipranges::AwsIpRanges;
-use crate::core::errors::Result;
+use crate::core::errors::{Error, Result};
 use log::{info, warn};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::{thread, time};
 
 /*-------------------------------------------------------------------------------------------------
   Primary Interface
@@ -59,32 +60,59 @@ pub struct BlockingClient {
     url: String,
     cache_file: PathBuf,
     cache_time: u64,
+    retry_count: u32,
+    retry_initial_delay: u64,
+    retry_backoff_factor: u64,
+    retry_timeout: u64,
 }
 
 impl Default for BlockingClient {
     fn default() -> Self {
-        Self::new()
+        Self {
+            url: "https://ip-ranges.amazonaws.com/ip-ranges.json".to_string(),
+            cache_file: dirs::home_dir()
+                .unwrap()
+                .join(".aws")
+                .join("ip-ranges.json"), // ${HOME}/.aws/ip-ranges.json
+            cache_time: 24 * 60 * 60, // 24 hours
+            retry_count: 4,
+            retry_initial_delay: 200, // 200 ms
+            retry_backoff_factor: 2,
+            retry_timeout: 5000, // 5 seconds
+        }
     }
 }
 
 impl BlockingClient {
     pub fn new() -> Self {
-        // Default the cache file path to ${HOME}/.aws/ip-ranges.json
-        let mut default_cache_file = dirs::home_dir().unwrap();
-        default_cache_file.push(".aws");
-        default_cache_file.push("ip-ranges.json");
+        let default = BlockingClient::default();
 
         Self {
-            url: env::var("AWSIPRANGES_URL")
-                .unwrap_or("https://ip-ranges.amazonaws.com/ip-ranges.json".to_string()),
+            url: env::var("AWSIPRANGES_URL").ok().unwrap_or(default.url),
             cache_file: env::var("AWSIPRANGES_CACHE_FILE")
                 .ok()
                 .map(PathBuf::from)
-                .unwrap_or(default_cache_file),
+                .unwrap_or(default.cache_file),
             cache_time: env::var("AWSIPRANGES_CACHE_TIME")
                 .ok()
                 .and_then(|env_var| env_var.parse::<u64>().ok())
-                .unwrap_or(24 * 60 * 60), // 24 hours
+                .unwrap_or(default.cache_time),
+            retry_count: env::var("AWSIPRANGES_RETRY_COUNT")
+                .ok()
+                .and_then(|env_var| env_var.parse::<u32>().ok())
+                .unwrap_or(default.retry_count),
+            retry_initial_delay: env::var("AWSIPRANGES_RETRY_INITIAL_DELAY")
+                .ok()
+                .and_then(|env_var| env_var.parse::<u64>().ok())
+                .unwrap_or(default.retry_initial_delay),
+            retry_backoff_factor: env::var("AWSIPRANGES_RETRY_BACKOFF_FACTOR")
+                .ok()
+                .and_then(|env_var| env_var.parse::<u64>().ok())
+                .unwrap_or(default.retry_backoff_factor),
+            retry_timeout: env::var("AWSIPRANGES_RETRY_TIMEOUT")
+                .ok()
+                .and_then(|env_var| env_var.parse::<u64>().ok())
+                .unwrap_or(default.retry_timeout),
         }
     }
 
@@ -123,6 +151,42 @@ impl BlockingClient {
         self
     }
 
+    /// Set the number of retry attempts to retrieve the AWS IP Ranges JSON data
+    /// from the URL; defaults to `4` attempts.
+    pub fn retry_count(&mut self, retry_count: u32) -> &Self {
+        self.retry_count = retry_count;
+        self
+    }
+
+    /// Set the initial delay (in milliseconds) between retry attempts to
+    /// retrieve the AWS IP Ranges JSON data from the URL; defaults to `200`
+    /// milliseconds.
+    ///
+    /// The delay between retry attempts is calculated as:
+    /// `retry_initial_delay * (retry_backoff_factor ^ attempt)`.
+    pub fn retry_initial_delay(&mut self, retry_initial_delay: u64) -> &Self {
+        self.retry_initial_delay = retry_initial_delay;
+        self
+    }
+
+    /// Set the backoff factor used to increase the delay between retry attempts
+    /// to retrieve the AWS IP Ranges JSON data from the URL; defaults to `2`.
+    ///
+    /// The delay between retry attempts is calculated as:
+    /// `retry_initial_delay * (retry_backoff_factor ^ attempt)`.
+    pub fn retry_backoff_factor(&mut self, retry_backoff_factor: u64) -> &Self {
+        self.retry_backoff_factor = retry_backoff_factor;
+        self
+    }
+
+    /// Set the maximum time (in milliseconds) to wait for the AWS IP Ranges JSON
+    /// data to be retrieved from the URL; defaults to `5000` milliseconds (5
+    /// seconds).
+    pub fn retry_timeout(&mut self, retry_timeout: u64) -> &Self {
+        self.retry_timeout = retry_timeout;
+        self
+    }
+
     fn get_json(&self) -> Result<String> {
         info!("Cache file path {:?}", &self.cache_file);
         info!("Cache time {} seconds", self.cache_time);
@@ -157,8 +221,39 @@ impl BlockingClient {
     }
 
     fn get_json_from_url(&self) -> Result<String> {
-        let response = reqwest::blocking::get(&self.url)?;
-        Ok(response.text()?)
+        let start_time = time::Instant::now();
+        let max_elapsed_time = time::Duration::from_millis(self.retry_timeout);
+
+        let mut attempt: u32 = 0;
+        loop {
+            info!("Get JSON from URL - Attempt {}: GET {}", attempt, self.url);
+            let json: Result<String> = reqwest::blocking::get(&self.url)
+                .map_err(Error::from)
+                .and_then(|response| response.text().map_err(Error::from))
+                .and_then(validate_json);
+
+            match json {
+                Ok(json) => break Ok(json),
+                Err(error) => {
+                    warn!("Get JSON from URL - Attempt {}: FAILED: {}", attempt, error);
+
+                    let delay = time::Duration::from_millis(
+                        self.retry_initial_delay * (self.retry_backoff_factor.pow(attempt)),
+                    );
+
+                    attempt += 1;
+
+                    if (start_time.elapsed() + delay < max_elapsed_time)
+                        && (attempt < self.retry_count)
+                    {
+                        thread::sleep(delay);
+                        continue;
+                    } else {
+                        break Err(error);
+                    }
+                }
+            }
+        }
     }
 
     fn cache_json_to_file(&self, json: &str) -> Result<()> {
@@ -169,8 +264,20 @@ impl BlockingClient {
     }
 
     fn get_json_from_file(&self) -> Result<String> {
-        Ok(fs::read_to_string(&self.cache_file)?)
+        fs::read_to_string(&self.cache_file)
+            .map_err(Error::from)
+            .and_then(validate_json)
     }
+}
+
+/*-------------------------------------------------------------------------------------------------
+  Helper Functions
+-------------------------------------------------------------------------------------------------*/
+
+fn validate_json(json: String) -> Result<String> {
+    serde_json::from_str::<serde::de::IgnoredAny>(&json)
+        .and(Ok(json))
+        .or(Err("Invalid JSON".into()))
 }
 
 /*-------------------------------------------------------------------------------------------------
