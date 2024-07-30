@@ -100,7 +100,7 @@ If you encounter any issues or bugs or have ideas for enhancements and new featu
 I appreciate the following teams and individuals without which this tool would not be possible or as quickly constructed:
 
 - The AWS Networking team that publishes and maintains the [AWS IP address ranges](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-ranges.html).
-- Abhishek Chanda ([@achanda](https://www.github.com/achanda)) for publishing the excellent [`ipnetwork`](https://crates.io/crates/ipnetwork) crate, which makes parsing and working with IPv4 and IPv6 prefixes a breeze.
+- Abhishek Chanda ([@achanda](https://www.github.com/achanda)) for publishing the excellent [ipnetwork](https://crates.io/crates/ipnetwork) crate, which makes parsing and working with IPv4 and IPv6 prefixes a breeze.
 - [VHS](https://github.com/charmbracelet/vhs) - Straightforward and powerful terminal GIF recorder! I love how easy it is to make a [demo tape](https://github.com/cmlccie/awsipranges/blob/main/demo/demo.tape)! 😎
 - Orhun Parmaksız ([@orhun](https://github.com/orhun)) for his excellent blog on [Fully Automated Releases for Rust Projects](https://blog.orhun.dev/automated-rust-releases/).
 
