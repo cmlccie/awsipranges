@@ -26,6 +26,8 @@ _Quickly query the AWS IP Ranges_
 
 You could get answers to some of these ☝️ questions by [filtering the JSON file](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-work-with.html#filter-json-file), but `awsipranges` [features](#features) make filtering more accessible. `awsipranges` parses and understands the structure of IPv4 and IPv6 CIDRs allowing you to work with IP ranges as they were meant to - as structured data - enabling you to output the results in human and machine friendly formats.
 
+If you find this project useful, please consider giving it a star ⭐ on [GitHub](https://github.com/cmlccie/awsipranges). Your support is greatly appreciated!
+
 ## Features
 
 - **Retrieve & Cache**: [`ip-ranges.json`](https://ip-ranges.amazonaws.com/ip-ranges.json) to `${HOME}/.aws/ip-ranges.json`; refreshing the cache after 24 hours (by default).
