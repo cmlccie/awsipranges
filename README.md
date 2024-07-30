@@ -10,7 +10,7 @@ _Quickly query the AWS IP Ranges_
 
 ---
 
-![Demo](https://vhs.charm.sh/vhs-6z37Y5VItkZQIHlvsZvdk2.gif)
+![Demo](https://vhs.charm.sh/vhs-10iTXUYl2aeKdyYoMvI6C0.gif)
 
 `awsipranges` allows you to search, filter, and use public [AWS IP address ranges](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-ranges.html) from the command line without writing complicated JSON parsing scripts or commands. This single-purpose CLI tool allows you to quickly answer questions like:
 
@@ -33,21 +33,65 @@ You could get answers to some of these ☝️ questions by [filtering the JSON f
 - **Filter**: IP ranges by region, service, network border group, and IP version (IPv4/IPv6).
 - **Multiple Output Formats**: Table, CIDR, and netmask output formats for easy integration with other tools.
 - **Save Results to CSV**: Save your search and filter results to CSV for programmatic use or analysis in your favorite spreadsheet app.
-- **Rust Crate:** This CLI tool's core functionality is also available as a library, allowing you to easily add it to your own Rust utility or application.
+- **Rust Crate:** This CLI tool's core functionality is also available as a library, allowing you to easily add it to your Rust utility or application.
 
 ## Installation
 
-### Cargo
+You can build and install `awsipranges` from source or install pre-built binaries. `awsipranges` supports:
 
-To build and install the latest `awsipranges` CLI from source, you will need the [Rust toolchain installed](https://www.rust-lang.org/tools/install) on your system, and then you can simply run:
+- **macOS** (Apple and Intel silicon)
+- **Linux** (x86_64 glibc 2.17+)
+- **Windows 10+** (x86_64).
+
+### Pre-Built Binaries
+
+You can download and install pre-built binaries from the [releases](https://github.com/cmlccie/awsipranges/releases/) page or use the following installation scripts, which select and install the correct binary for your platform.
+
+#### Homebrew
+
+```Shell
+brew install cmlccie/tap/awsipranges
+```
+
+#### Shell Script
+
+See the [releases](https://github.com/cmlccie/awsipranges/releases/) page for the latest `{{version}}`.
+
+```Shell
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/cmlccie/awsipranges/releases/download/{{version}}/awsipranges-installer.sh | sh
+```
+
+#### PowerShell Script
+
+See the [releases](https://github.com/cmlccie/awsipranges/releases/) page for the latest `{{version}}`.
+
+```PowerShell
+powershell -c "irm https://github.com/cmlccie/awsipranges/releases/download/{{version}}/awsipranges-installer.ps1 | iex"
+```
+
+### Build from source
+
+To build and install `awsipranges` from source, you will need the [Rust toolchain installed](https://www.rust-lang.org/tools/install) on your system. Then, you can use `cargo install` to download and build your desired version.
+
+#### Crates.io
+
+Install published releases of `awsipranges` from [crates.io](https://crates.io/crates/awsipranges/).
 
 ```bash
 cargo install awsipranges
 ```
 
-## Why did I make this?
+#### GitHub
 
-I frequently need to get answers from the AWS IP ranges. I published a similar [Python library](https://github.com/aws-samples/awsipranges) while working at AWS. Then, when learning Rust, I needed something to build! 😎 This tool has been helpful to me - perhaps it will be useful to you.
+Install the latest, potentially _unreleased_, `awsipranges` from the `main` branch on [GitHub](https://crates.io/crates/awsipranges/).
+
+```bash
+cargo install --git https://github.com/cmlccie/awsipranges.git
+```
+
+## Issues and Enhancements
+
+If you encounter any issues or bugs or have ideas for enhancements and new features, please report them on our [GitHub Issues](https://github.com/cmlccie/awsipranges/issues) page. Your feedback is a gift and helps us improve the tool for everyone!
 
 ## Acknowledgements
 
@@ -55,3 +99,14 @@ I appreciate the following teams and individuals without which this tool would n
 
 - The AWS Networking team that publishes and maintains the [AWS IP address ranges](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-ranges.html).
 - Abhishek Chanda ([@achanda](https://www.github.com/achanda)) for publishing the excellent [`ipnetwork`](https://crates.io/crates/ipnetwork) crate, which makes parsing and working with IPv4 and IPv6 prefixes a breeze.
+- [VHS](https://github.com/charmbracelet/vhs) - Straightforward and powerful terminal GIF recorder! I love how easy it is to make a [demo tape](https://github.com/cmlccie/awsipranges/blob/main/demo/demo.tape)! 😎
+- Orhun Parmaksız ([@orhun](https://github.com/orhun)) for his excellent blog on [Fully Automated Releases for Rust Projects](https://blog.orhun.dev/automated-rust-releases/).
+
+## Other Works
+
+- [`netrange`](https://crates.io/crates/netrange) - Use LUA scripts to download and filter IP ranges from multiple cloud providers.
+- [`aws-ip-ranges`](https://crates.io/crates/aws-ip-ranges) - Provides the AWS IP range data as a const struct.
+
+## Why did I make this?
+
+I frequently need to get answers from the AWS IP ranges. I published a similar [Python library](https://github.com/aws-samples/awsipranges) while working at AWS. Then, when learning Rust, I needed something to build! 😎 This tool has been helpful to me - perhaps it will be useful to you.

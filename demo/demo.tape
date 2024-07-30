@@ -59,6 +59,7 @@ Type "# Get IP ranges for a Local Zone"
 Sleep 500ms
 Enter
 Type "awsipranges --network-border-group us-west-2-lax-1"
+Sleep 500ms
 Enter
 Sleep 4s
 Type "# ...and more!"

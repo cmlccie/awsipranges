@@ -70,3 +70,6 @@ clean:
 demo:
 	docker build -f demo/Dockerfile -t awsipranges-demo:local .
 	docker run --rm -v $$(pwd)/demo:/vhs awsipranges-demo:local demo.tape
+
+publish-demo:
+	vhs publish demo/awsipranges.gif
