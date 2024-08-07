@@ -41,11 +41,13 @@ If you find this project useful, please consider giving it a star ⭐ on [GitHub
 
 You can build and install `awsipranges` from source or install pre-built binaries. `awsipranges` supports:
 
-| OS              | arm64 (AArch64)  | amd64 (x86_64)   | System C Libraries            |
-| --------------- | ---------------- | ---------------- | ----------------------------- |
-| **macOS**       | ✅ Apple silicon | ✅ Intel silicon |                               |
-| **Linux**       | ✅               | ✅               | GNU (glibc) </BR> Musl (libc) |
-| **Windows 10+** |                  | ✅               | MSVC                          |
+| OS              | arm64 (AArch64)                     | amd64 (x86_64)                         |
+| --------------- | ----------------------------------- | -------------------------------------- |
+| **macOS**       | ✅ ⏬ Apple silicon                 | ✅ ⏬ Intel silicon                    |
+| **Linux**       | ✅ GNU (glibc) </BR> ✅ Musl (libc) | ✅ ⏬ GNU (glibc) </BR> ✅ Musl (libc) |
+| **Windows 10+** |                                     | ✅ ⏬ MSVC                             |
+
+✅ = Supported ⏬ = Pre-built binaries available
 
 Following [Rust Platform Support](https://doc.rust-lang.org/nightly/rustc/platform-support.html) for supported targets and OS and library version dependencies.
 
