@@ -25,7 +25,7 @@ dirs = "5.0.1"
 ipnetwork = "0.20.0"
 lazy_static = "1.4.0"
 log = "0.4.20"
-reqwest = { version = "0.12.5", features = ["json", "blocking"] }
+reqwest = { version = "0.12.5", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 serde = { version = "1.0.183", features = ["derive", "rc"] }
 serde_json = "1.0.122"
 stderrlog = "0.6.0"
@@ -50,7 +50,15 @@ installers = ["shell", "powershell", "homebrew", "msi"]
 # A GitHub repo to push Homebrew formulas to
 tap = "cmlccie/tap"
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+targets = [
+  "aarch64-apple-darwin",
+  "aarch64-unknown-linux-gnu",
+  "aarch64-unknown-linux-musl",
+  "x86_64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "x86_64-unknown-linux-gnu",
+  "x86_64-unknown-linux-musl",
+]
 # Path that installers should place binaries in
 install-path = "CARGO_HOME"
 # Publish jobs to run in CI
