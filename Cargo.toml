@@ -6,7 +6,7 @@ license = "BSD-2-Clause-Patent"
 homepage = "https://github.com/cmlccie/awsipranges"
 repository = "https://github.com/cmlccie/awsipranges"
 documentation = "https://docs.rs/awsipranges/latest/awsipranges/"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2021"
 
 [package.metadata.wix]

@@ -43,7 +43,7 @@ You can build and install `awsipranges` from source or install pre-built binarie
 
 | OS              | arm64 (AArch64)  | amd64 (x86_64)   | System C Libraries            |
 | --------------- | ---------------- | ---------------- | ----------------------------- |
-| **macOS**       | ✅ Apple silicon | ✅ Intel Silicon |                               |
+| **macOS**       | ✅ Apple silicon | ✅ Intel silicon |                               |
 | **Linux**       | ✅               | ✅               | GNU (glibc) </BR> Musl (libc) |
 | **Windows 10+** |                  | ✅               | MSVC                          |
 
