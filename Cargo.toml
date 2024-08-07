@@ -70,6 +70,15 @@ install-updater = false
 # Skip checking whether the specified configuration files are up to date
 allow-dirty = ["ci"]
 
-[workspace.metadata.dist.dependencies.apt]
-gcc-aarch64-linux-gnu = {version = "*", targets=["aarch64-unknown-linux-gnu"]}
-gcc-aarch64-linux-musl = {version = "*", targets=["aarch64-unknown-linux-musl"]}
+# [workspace.metadata.dist.dependencies.apt]
+# gcc-aarch64-linux-gnu = {version = "*", targets=["aarch64-unknown-linux-gnu"]}
+# gcc-aarch64-linux-musl = {version = "*", targets=["aarch64-unknown-linux-musl"]}
+
+[workspace.metadata.dist.github-custom-runners]
+aarch64-apple-darwin = "macos-latest"
+aarch64-unknown-linux-gnu = "macos-latest"
+aarch64-unknown-linux-musl = "macos-latest"
+x86_64-apple-darwin = "macos-13"
+x86_64-pc-windows-msvc = "windows-latest"
+x86_64-unknown-linux-gnu = "ubuntu-latest"
+x86_64-unknown-linux-musl = "macos-latest"
