@@ -71,5 +71,5 @@ install-updater = false
 allow-dirty = ["ci"]
 
 [workspace.metadata.dist.dependencies.apt]
-aarch64-linux-gnu-gcc = {version = "*", targets=["aarch64-unknown-linux-gnu"]}
-aarch64-linux-musl-gcc = {version = "*", targets=["aarch64-unknown-linux-musl"]}
+gcc-aarch64-linux-gnu = {version = "*", targets=["aarch64-unknown-linux-gnu"]}
+gcc-aarch64-linux-musl = {version = "*", targets=["aarch64-unknown-linux-musl"]}
