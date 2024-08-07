@@ -52,12 +52,9 @@ tap = "cmlccie/tap"
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = [
   "aarch64-apple-darwin",
-  "aarch64-unknown-linux-gnu",
-  "aarch64-unknown-linux-musl",
   "x86_64-apple-darwin",
   "x86_64-pc-windows-msvc",
   "x86_64-unknown-linux-gnu",
-  "x86_64-unknown-linux-musl",
 ]
 # Path that installers should place binaries in
 install-path = "CARGO_HOME"
@@ -70,15 +67,8 @@ install-updater = false
 # Skip checking whether the specified configuration files are up to date
 allow-dirty = ["ci"]
 
-# [workspace.metadata.dist.dependencies.apt]
-# gcc-aarch64-linux-gnu = {version = "*", targets=["aarch64-unknown-linux-gnu"]}
-# gcc-aarch64-linux-musl = {version = "*", targets=["aarch64-unknown-linux-musl"]}
-
 [workspace.metadata.dist.github-custom-runners]
 aarch64-apple-darwin = "macos-latest"
-aarch64-unknown-linux-gnu = "macos-latest"
-aarch64-unknown-linux-musl = "macos-latest"
 x86_64-apple-darwin = "macos-13"
 x86_64-pc-windows-msvc = "windows-latest"
 x86_64-unknown-linux-gnu = "ubuntu-latest"
-x86_64-unknown-linux-musl = "macos-latest"
