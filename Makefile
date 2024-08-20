@@ -21,7 +21,7 @@ lint:
 	cargo clippy
 
 tests:
-	RUST_BACKTRACE=1 cargo test
+	RUST_LOG=debug RUST_BACKTRACE=1 cargo test
 
 coverage: export CARGO_INCREMENTAL=0
 coverage: export CARGO_ENCODED_RUSTFLAGS=-Cinstrument-coverage

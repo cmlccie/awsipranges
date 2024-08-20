@@ -287,18 +287,20 @@ fn validate_json(json: String) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::errors::log_error;
     use crate::core::json;
+    use test_log::test;
 
     #[test]
     fn test_get_ranges_function() {
-        let aws_ip_ranges = get_ranges();
+        let aws_ip_ranges = get_ranges().inspect_err(log_error);
         assert!(aws_ip_ranges.is_ok());
     }
 
     #[test]
     fn test_client_get_ranges() {
         let client = BlockingClient::new();
-        let aws_ip_ranges = client.get_ranges();
+        let aws_ip_ranges = client.get_ranges().inspect_err(log_error);
         assert!(aws_ip_ranges.is_ok());
     }
 
@@ -306,7 +308,7 @@ mod tests {
     fn test_set_url() {
         let mut client: BlockingClient = BlockingClient::new();
         client.url("https://ip-ranges.amazonaws.com/ip-ranges.json");
-        let aws_ip_ranges = client.get_ranges();
+        let aws_ip_ranges = client.get_ranges().inspect_err(log_error);
         assert!(aws_ip_ranges.is_ok());
     }
 
@@ -315,7 +317,7 @@ mod tests {
         let test_cache_file: PathBuf = [".", "scratch", "ip-ranges.json"].iter().collect();
         let mut client: BlockingClient = BlockingClient::new();
         client.cache_file(&test_cache_file);
-        let aws_ip_ranges = client.get_ranges();
+        let aws_ip_ranges = client.get_ranges().inspect_err(log_error);
         assert!(aws_ip_ranges.is_ok());
     }
 
@@ -323,14 +325,14 @@ mod tests {
     fn test_set_cache_time() {
         let mut client: BlockingClient = BlockingClient::new();
         client.cache_time(48 * 60 * 60);
-        let aws_ip_ranges = client.get_ranges();
+        let aws_ip_ranges = client.get_ranges().inspect_err(log_error);
         assert!(aws_ip_ranges.is_ok());
     }
 
     #[test]
     fn test_get_json_from_url() {
         let client = BlockingClient::new();
-        let json = client.get_json_from_url();
+        let json = client.get_json_from_url().inspect_err(log_error);
         assert!(json.is_ok());
     }
 
@@ -338,7 +340,7 @@ mod tests {
     fn test_cache_json_to_file() {
         let client = BlockingClient::new();
         let json = client.get_json_from_url().unwrap();
-        let result = client.cache_json_to_file(&json);
+        let result = client.cache_json_to_file(&json).inspect_err(log_error);
         assert!(result.is_ok());
     }
 
@@ -347,7 +349,7 @@ mod tests {
         let client = BlockingClient::new();
         let json_from_url = client.get_json_from_url().unwrap();
         client.cache_json_to_file(&json_from_url).unwrap();
-        let json_from_file = client.get_json_from_file();
+        let json_from_file = client.get_json_from_file().inspect_err(log_error);
         assert!(json_from_file.is_ok());
     }
 
@@ -355,7 +357,7 @@ mod tests {
     fn test_parse_json() {
         let client = BlockingClient::new();
         let json = client.get_json_from_url().unwrap();
-        let json_ip_ranges = json::parse(&json);
+        let json_ip_ranges = json::parse(&json).inspect_err(log_error);
         assert!(json_ip_ranges.is_ok());
     }
 
