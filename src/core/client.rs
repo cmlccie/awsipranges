@@ -41,41 +41,12 @@ pub fn get_ranges() -> Result<Box<AwsIpRanges>> {
 }
 
 /*-------------------------------------------------------------------------------------------------
-  Client
+  Client Builder
 -------------------------------------------------------------------------------------------------*/
 
-/// A client for retrieving the AWS IP Ranges. The client retrieves the AWS IP Ranges from the
-/// cached JSON file, when available and fresh, or from the URL when the cache is stale or
-/// unavailable. The client implements a simple exponential backoff retry mechanism to retrieve the
-/// JSON data from the URL.
-///
-/// The [Client] and [ClientBuilder] structs attempt to source configuration values from
-/// environment variables when set and use default values when the environment variables are not
-/// set - see the [ClientBuilder] struct for details on the environment variables used.
-///
-/// ```
-/// let client = awsipranges::Client::new();
-/// let aws_ip_ranges = client.get_ranges().unwrap();
-/// ```
-#[derive(Debug, Clone)]
-pub struct Client {
-    url: String,
-    cache_file: PathBuf,
-    cache_time: u64,
-    retry_count: u32,
-    retry_initial_delay: u64,
-    retry_backoff_factor: u64,
-    retry_timeout: u64,
-}
-
-/*--------------------------------------------------------------------------------------
-  Client Builder
---------------------------------------------------------------------------------------*/
-
-/// A builder for the [Client] struct that allows you to customize the client
-/// configuration. The [ClientBuilder] struct provides setters for each
-/// configuration value and a [ClientBuilder::build] method to create a [Client]
-/// instance.
+/// A builder for the [Client] struct that allows you to customize the client configuration. The
+/// [ClientBuilder] struct provides setters for each configuration value and a
+/// [ClientBuilder::build] method to create a [Client] instance.
 ///
 /// ```
 /// let client = awsipranges::ClientBuilder::new()
@@ -89,13 +60,11 @@ pub struct Client {
 ///     .build();
 /// ```
 ///
-/// The [ClientBuilder::new] method attempts to source configuration values from
-/// environment variables when set and uses default values when the environment
-/// variables are not set.
+/// The [ClientBuilder::new] method attempts to source configuration values from environment
+/// variables when set and uses default values when the environment variables are not set.
 ///
-/// If you want to use the default configuration values, ignoring any set
-/// environment variables, use the [ClientBuilder::default] method to create a
-/// new [ClientBuilder] instance.
+/// If you want to use the default configuration values, ignoring any environment variables, use
+/// the [ClientBuilder::default] method to create a new [ClientBuilder] instance.
 #[derive(Debug, Clone)]
 pub struct ClientBuilder {
     url: String,
@@ -106,6 +75,10 @@ pub struct ClientBuilder {
     retry_backoff_factor: u64,
     retry_timeout: u64,
 }
+
+/*--------------------------------------------------------------------------------------
+  Client Builder Implementation
+--------------------------------------------------------------------------------------*/
 
 impl Default for ClientBuilder {
     /// Create a new [ClientBuilder] with default configuration values.
@@ -214,8 +187,8 @@ impl ClientBuilder {
         self
     }
 
-    /// Set the number of retry attempts to retrieve the AWS IP Ranges JSON data
-    /// from the URL; defaults to `4` attempts.
+    /// Set the number of retry attempts to retrieve the AWS IP Ranges JSON
+    /// data from the URL; defaults to `4` attempts.
     pub fn retry_count(&mut self, retry_count: u32) -> &mut Self {
         self.retry_count = retry_count;
         self
@@ -232,8 +205,9 @@ impl ClientBuilder {
         self
     }
 
-    /// Set the backoff factor used to increase the delay between retry attempts
-    /// to retrieve the AWS IP Ranges JSON data from the URL; defaults to `2`.
+    /// Set the backoff factor used to increase the delay between retry
+    /// attempts to retrieve the AWS IP Ranges JSON data from the URL; defaults
+    /// to `2`.
     ///
     /// The delay between retry attempts is calculated as:
     /// `retry_initial_delay * (retry_backoff_factor ^ attempt)`.
@@ -242,9 +216,9 @@ impl ClientBuilder {
         self
     }
 
-    /// Set the maximum time (in milliseconds) to wait for the AWS IP Ranges JSON
-    /// data to be retrieved from the URL; defaults to `5000` milliseconds (5
-    /// seconds).
+    /// Set the maximum time (in milliseconds) to wait for the AWS IP Ranges
+    /// JSON data to be retrieved from the URL; defaults to `5000` milliseconds
+    /// (5 seconds).
     pub fn retry_timeout(&mut self, retry_timeout: u64) -> &mut Self {
         self.retry_timeout = retry_timeout;
         self
@@ -265,6 +239,35 @@ impl ClientBuilder {
             retry_timeout: self.retry_timeout,
         }
     }
+}
+
+/*-------------------------------------------------------------------------------------------------
+  Client
+-------------------------------------------------------------------------------------------------*/
+
+/// A client for retrieving the AWS IP Ranges from the cached JSON file, when available and fresh,
+/// or from the URL when the cache is stale or unavailable. Client implements a simple exponential-
+/// backoff retry mechanism to retrieve the JSON data from the URL.
+///
+/// The [Client::new] method attempts to source configuration values from environment variables
+/// when set and uses default values when the environment variables are not set.
+///
+/// If you want to use the default configuration values, ignoring any environment variables, use
+/// the [Client::default] method to create a new [Client] instance.
+///
+/// ```
+/// let client = awsipranges::Client::new();
+/// let aws_ip_ranges = client.get_ranges().unwrap();
+/// ```
+#[derive(Debug, Clone)]
+pub struct Client {
+    url: String,
+    cache_file: PathBuf,
+    cache_time: u64,
+    retry_count: u32,
+    retry_initial_delay: u64,
+    retry_backoff_factor: u64,
+    retry_timeout: u64,
 }
 
 /*--------------------------------------------------------------------------------------
@@ -321,6 +324,7 @@ impl Client {
     /// Get the cache-time duration - the amount of time (in seconds) the
     /// locally cached AWS IP Ranges JSON data is considered fresh.
     /// Defaults to 24 hours (86400 seconds).
+    ///
     /// ```
     /// let client = awsipranges::Client::new();
     /// assert_eq!(client.cache_time(), 86400);
@@ -329,8 +333,9 @@ impl Client {
         self.cache_time
     }
 
-    /// Get the number of retry attempts to retrieve the AWS IP Ranges JSON data
-    /// from the URL. Defaults to 4 attempts.
+    /// Get the number of retry attempts to retrieve the AWS IP Ranges JSON
+    /// data from the URL. Defaults to 4 attempts.
+    ///
     /// ```
     /// let client = awsipranges::Client::new();
     /// assert_eq!(client.retry_count(), 4);
@@ -342,6 +347,7 @@ impl Client {
     /// Get the initial delay (in milliseconds) between retry attempts to
     /// retrieve the AWS IP Ranges JSON data from the URL. Defaults to 200
     /// milliseconds.
+    ///
     /// ```
     /// let client = awsipranges::Client::new();
     /// assert_eq!(client.retry_initial_delay(), 200);
@@ -350,8 +356,10 @@ impl Client {
         self.retry_initial_delay
     }
 
-    /// Get the backoff factor used to increase the delay between retry attempts
-    /// to retrieve the AWS IP Ranges JSON data from the URL. Defaults to 2.
+    /// Get the backoff factor used to increase the delay between retry
+    /// attempts to retrieve the AWS IP Ranges JSON data from the URL. Defaults
+    /// to 2.
+    ///
     /// ```
     /// let client = awsipranges::Client::new();
     /// assert_eq!(client.retry_backoff_factor(), 2);
@@ -360,9 +368,10 @@ impl Client {
         self.retry_backoff_factor
     }
 
-    /// Get the maximum time (in milliseconds) to wait for the AWS IP Ranges JSON
-    /// data to be retrieved from the URL. Defaults to 5000 milliseconds (5
-    /// seconds).
+    /// Get the maximum time (in milliseconds) to wait for the AWS IP Ranges
+    /// JSON data to be retrieved from the URL. Defaults to 5000 milliseconds
+    /// (5 seconds).
+    ///
     /// ```
     /// let client = awsipranges::Client::new();
     /// assert_eq!(client.retry_timeout(), 5000);
@@ -375,9 +384,10 @@ impl Client {
       Get Ranges
     -------------------------------------------------------------------------*/
 
-    /// Retrieves, parses, and returns a boxed [AwsIpRanges] object. Uses locally cached
-    /// JSON data, when available and fresh. Requests the AWS IP Ranges JSON data from
-    /// the URL when the local cache is stale or unavailable.
+    /// Retrieves, parses, and returns a boxed [AwsIpRanges] object. Uses
+    /// locally cached JSON data, when available and fresh. Requests the AWS IP
+    /// Ranges JSON data from the URL when the local cache is stale or
+    /// unavailable.
     pub fn get_ranges(&self) -> Result<Box<AwsIpRanges>> {
         let json = self.get_json()?;
         AwsIpRanges::from_json(&json)
@@ -509,6 +519,8 @@ mod tests {
       Test Simple Interface
     -------------------------------------------------------------------------*/
 
+    /// Test the library's simple interface function.
+    /// FILE: {HOME}/.aws/ip-ranges.json
     #[test]
     fn test_get_ranges_function() {
         let aws_ip_ranges = get_ranges().inspect_err(log_error);
@@ -580,6 +592,8 @@ mod tests {
       Test JSON Retrieval Methods
     -------------------------------------------------------------------------*/
 
+    /// Test getting the JSON data from the URL.
+    /// URL: https://ip-ranges.amazonaws.com/ip-ranges.json
     #[test]
     fn test_get_json_from_url() {
         let client = ClientBuilder::default().build();
@@ -587,6 +601,8 @@ mod tests {
         assert!(json.is_ok());
     }
 
+    /// Test caching the JSON data to a file.
+    /// FILE: ./scratch/test_cache_json_to_file.json
     #[test]
     fn test_cache_json_to_file() {
         let test_cache_file: PathBuf = [".", "scratch", "test_cache_json_to_file.json"]
@@ -600,6 +616,8 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    /// Test getting the JSON data from a file.
+    /// FILE: ./scratch/test_get_json_from_file.json
     #[test]
     fn test_get_json_from_file() {
         // Write JSON data to test cache file
@@ -621,17 +639,21 @@ mod tests {
       Test JSON Parsing
     -------------------------------------------------------------------------*/
 
+    /// Test parsing the JSON data.
+    /// URL: https://ip-ranges.amazonaws.com/ip-ranges.json
     #[test]
     fn test_parse_json() {
-        let client = Client::new();
+        let client = Client::default();
         let json = client.get_json_from_url().unwrap();
         let json_ip_ranges = json::parse(&json).inspect_err(log_error);
         assert!(json_ip_ranges.is_ok());
     }
 
+    /// Test serializing the JSON data.
+    /// URL: https://ip-ranges.amazonaws.com/ip-ranges.json
     #[test]
     fn test_serialize_json_ip_ranges() {
-        let client = Client::new();
+        let client = Client::default();
         let json_from_url = client.get_json_from_url().unwrap();
         let json_ip_ranges = json::parse(&json_from_url).unwrap();
         let serialized_json = serde_json::to_string(&json_ip_ranges);
