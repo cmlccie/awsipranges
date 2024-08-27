@@ -21,7 +21,7 @@ lint:
 	cargo clippy
 
 tests:
-	RUST_LOG=debug RUST_BACKTRACE=1 cargo test
+	RUST_LOG=debug RUST_BACKTRACE=1 cargo test -- --test-threads=1
 
 coverage: export CARGO_INCREMENTAL=0
 coverage: export CARGO_ENCODED_RUSTFLAGS=-Cinstrument-coverage
@@ -29,7 +29,7 @@ coverage: export LLVM_PROFILE_FILE=cargo-test-%p-%m.profraw
 coverage:
 	@mkdir -p target/coverage
 	@rm -rf target/coverage/*
-	cargo test
+	cargo test -- --test-threads=1
 	@grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/coverage/tests.lcov
 	@find . -name '*.profraw' -delete
 
@@ -39,7 +39,7 @@ coverage_report: export LLVM_PROFILE_FILE=cargo-test-%p-%m.profraw
 coverage_report:
 	@mkdir -p target/coverage
 	@rm -rf target/coverage/*
-	cargo test
+	cargo test -- --test-threads=1
 	@grcov . --binary-path ./target/debug/deps/ -s . -t html --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/coverage/html
 	@find . -name '*.profraw' -delete
 	open target/coverage/html/index.html

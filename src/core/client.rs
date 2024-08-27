@@ -563,6 +563,7 @@ mod tests {
     use super::*;
     use crate::core::errors::log_error;
     use crate::core::json;
+    use env::VarError;
     use test_log::test;
 
     /*-------------------------------------------------------------------------
@@ -570,6 +571,12 @@ mod tests {
     -------------------------------------------------------------------------*/
 
     /// Test the library's simple interface function.
+    /// ENV_VAR: AWSIPRANGES_CACHE_FILE
+    /// ENV_VAR: AWSIPRANGES_CACHE_TIME
+    /// ENV_VAR: AWSIPRANGES_RETRY_COUNT
+    /// ENV_VAR: AWSIPRANGES_RETRY_INITIAL_DELAY
+    /// ENV_VAR: AWSIPRANGES_RETRY_BACKOFF_FACTOR
+    /// ENV_VAR: AWSIPRANGES_RETRY_TIMEOUT
     /// FILE: {HOME}/.aws/ip-ranges.json
     #[test]
     fn test_get_ranges_function() {
@@ -578,64 +585,108 @@ mod tests {
     }
 
     /*-------------------------------------------------------------------------
+      Test Environment Variable Configuration
+    -------------------------------------------------------------------------*/
+
+    /// ENV_VAR: AWSIPRANGES_CACHE_FILE
+    /// ENV_VAR: AWSIPRANGES_CACHE_TIME
+    /// ENV_VAR: AWSIPRANGES_RETRY_COUNT
+    /// ENV_VAR: AWSIPRANGES_RETRY_INITIAL_DELAY
+    /// ENV_VAR: AWSIPRANGES_RETRY_BACKOFF_FACTOR
+    /// ENV_VAR: AWSIPRANGES_RETRY_TIMEOUT
+    #[test]
+    fn test_environment_variable_configuration() {
+        let test_env_vars = [
+            ("AWSIPRANGES_URL", "https://my-ip-ranges.com/ip-ranges.json"),
+            (
+                "AWSIPRANGES_CACHE_FILE",
+                "./scratch/test_environment_variable_configuration_cache_file.json",
+            ),
+            ("AWSIPRANGES_CACHE_TIME", "60"),
+            ("AWSIPRANGES_RETRY_COUNT", "2"),
+            ("AWSIPRANGES_RETRY_INITIAL_DELAY", "100"),
+            ("AWSIPRANGES_RETRY_BACKOFF_FACTOR", "3"),
+            ("AWSIPRANGES_RETRY_TIMEOUT", "1000"),
+        ];
+
+        let default = Client::default();
+
+        // Store environment variable values
+        let stored_env_vars: Vec<(String, std::result::Result<std::string::String, VarError>)> =
+            test_env_vars
+                .iter()
+                .map(|(env_var, _)| (env_var.to_string(), env::var(env_var)))
+                .collect();
+
+        // Unset all environment variables
+        test_env_vars.iter().for_each(|(env_var, _)| unsafe {
+            std::env::remove_var(env_var);
+        });
+
+        // Test default cases
+        let new = Client::new();
+        assert_eq!(new.url(), default.url());
+        assert_eq!(new.cache_file(), default.cache_file());
+        assert_eq!(new.cache_time(), default.cache_time());
+        assert_eq!(new.retry_count(), default.retry_count());
+        assert_eq!(new.retry_initial_delay(), default.retry_initial_delay());
+        assert_eq!(new.retry_backoff_factor(), default.retry_backoff_factor());
+        assert_eq!(new.retry_timeout(), default.retry_timeout());
+
+        // Set all environment variables
+        for (env_var, value) in test_env_vars.iter() {
+            unsafe { std::env::set_var(env_var, value) };
+        }
+
+        // Test environment variable configuration
+        let env_config = Client::new();
+        assert_eq!(env_config.url(), "https://my-ip-ranges.com/ip-ranges.json");
+        assert_eq!(
+            env_config.cache_file(),
+            PathBuf::from("./scratch/test_environment_variable_configuration_cache_file.json")
+        );
+        assert_eq!(env_config.cache_time(), 60);
+        assert_eq!(env_config.retry_count(), 2);
+        assert_eq!(env_config.retry_initial_delay(), 100);
+        assert_eq!(env_config.retry_backoff_factor(), 3);
+        assert_eq!(env_config.retry_timeout(), 1000);
+
+        // Reset environment variables
+        for (env_var, value) in stored_env_vars {
+            match value {
+                Ok(value) => unsafe { std::env::set_var(env_var, value) },
+                Err(VarError::NotPresent) => unsafe { std::env::remove_var(env_var) },
+                Err(VarError::NotUnicode(value)) => unsafe { std::env::set_var(env_var, value) },
+            }
+        }
+    }
+
+    /*-------------------------------------------------------------------------
       Test Getter and Setter Methods
     -------------------------------------------------------------------------*/
 
     #[test]
-    fn test_set_url() {
-        let url = "https://my-ip-ranges.com/ip-ranges.json";
-        let client = ClientBuilder::default().url(url).build();
-        assert!(client.url() == url);
-    }
-
-    #[test]
-    fn test_set_cache_file() {
-        let test_cache_file: PathBuf = [".", "scratch", "ip-ranges.json"].iter().collect();
-        let client: Client = ClientBuilder::default()
-            .cache_file(&test_cache_file)
+    fn test_getter_and_setter_methods() {
+        let client = ClientBuilder::default()
+            .url("https://my-ip-ranges.com/ip-ranges.json")
+            .cache_file("./scratch/test_getter_and_setter_methods_cache_file.json")
+            .cache_time(60)
+            .retry_count(2)
+            .retry_initial_delay(100)
+            .retry_backoff_factor(3)
+            .retry_timeout(1000)
             .build();
-        assert!(client.cache_file() == test_cache_file);
-    }
 
-    #[test]
-    fn test_set_cache_time() {
-        let cache_time = 60; // 1 minute
-        let client: Client = ClientBuilder::default().cache_time(cache_time).build();
-        assert!(client.cache_time() == cache_time);
-    }
-
-    #[test]
-    fn test_set_retry_count() {
-        let retry_count = 2;
-        let client: Client = ClientBuilder::default().retry_count(retry_count).build();
-        assert!(client.retry_count() == retry_count);
-    }
-
-    #[test]
-    fn test_set_retry_initial_delay() {
-        let retry_initial_delay = 100; // 100 ms
-        let client: Client = ClientBuilder::default()
-            .retry_initial_delay(retry_initial_delay)
-            .build();
-        assert!(client.retry_initial_delay() == retry_initial_delay);
-    }
-
-    #[test]
-    fn test_set_retry_backoff_factor() {
-        let retry_backoff_factor = 3;
-        let client: Client = ClientBuilder::default()
-            .retry_backoff_factor(retry_backoff_factor)
-            .build();
-        assert!(client.retry_backoff_factor() == retry_backoff_factor);
-    }
-
-    #[test]
-    fn test_set_retry_timeout() {
-        let retry_timeout = 1000; // 1 second
-        let client: Client = ClientBuilder::default()
-            .retry_timeout(retry_timeout)
-            .build();
-        assert!(client.retry_timeout() == retry_timeout);
+        assert_eq!(client.url(), "https://my-ip-ranges.com/ip-ranges.json");
+        assert_eq!(
+            client.cache_file(),
+            PathBuf::from("./scratch/test_getter_and_setter_methods_cache_file.json")
+        );
+        assert_eq!(client.cache_time(), 60);
+        assert_eq!(client.retry_count(), 2);
+        assert_eq!(client.retry_initial_delay(), 100);
+        assert_eq!(client.retry_backoff_factor(), 3);
+        assert_eq!(client.retry_timeout(), 1000);
     }
 
     /*-------------------------------------------------------------------------
