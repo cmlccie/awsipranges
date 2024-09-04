@@ -28,10 +28,10 @@ fn main() -> awsipranges::Result<()> {
     let search_cidrs = cli::parse_prefixes(&args);
     let search_results = search_cidrs
         .as_ref()
-        .map(|search_prefixes| aws_ip_ranges.search(search_prefixes.iter()));
+        .map(|search_prefixes| aws_ip_ranges.search(search_prefixes));
 
     // Apply Filters
-    let filter = [
+    let filters_enabled = [
         args.ipv4,
         args.ipv6,
         args.include_regions.is_some(),
@@ -39,8 +39,13 @@ fn main() -> awsipranges::Result<()> {
         args.include_services.is_some(),
     ]
     .iter()
-    .any(|v| *v)
-    .then(|| cli::build_filter(&args, &aws_ip_ranges));
+    .any(|v| *v);
+
+    let filter = if filters_enabled {
+        Some(cli::build_filter(&args, &aws_ip_ranges)?)
+    } else {
+        None
+    };
 
     let filtered_results = match (&search_results, &filter) {
         (Some(search_results), Some(filter)) => Some(search_results.aws_ip_ranges.filter(filter)),

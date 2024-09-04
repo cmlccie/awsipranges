@@ -8,7 +8,9 @@ mod core;
   Library Public Interface
 -------------------------------------------------------------------------------------------------*/
 
-pub use crate::core::awsipranges::{AwsIpPrefix, AwsIpRanges, Filter, PrefixType, SearchResults};
+pub use crate::core::awsipranges::{
+    AwsIpPrefix, AwsIpRanges, Filter, FilterBuilder, PrefixType, SearchResults,
+};
 pub use crate::core::client::{get_ranges, Client, ClientBuilder};
 pub use crate::core::errors::{Error, Result};
 

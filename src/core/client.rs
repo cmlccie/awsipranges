@@ -22,18 +22,14 @@ use std::{thread, time};
 ///
 /// // Search for IP Prefixes
 /// let search_prefixes: Vec<IpNetwork> = vec!["3.141.102.225".parse().unwrap()];
-/// let search_results = aws_ip_ranges.search(search_prefixes.iter());
+/// let search_results = aws_ip_ranges.search(&search_prefixes);
 ///
 /// // Filter the AWS IP Ranges
-/// let region = aws_ip_ranges.get_region("us-east-2").unwrap();
-/// let service = aws_ip_ranges.get_service("S3").unwrap();
-///
-/// let filter = awsipranges::Filter {
-///     prefix_type: Some(awsipranges::PrefixType::IPv4),
-///     regions: Some(vec![region].into_iter().collect()),
-///     network_border_groups: None,
-///     services: Some(vec![service].into_iter().collect()),
-/// };
+/// let filter = awsipranges::FilterBuilder::new(&aws_ip_ranges)
+///    .ipv4()
+///    .regions(["us-east-2"]).unwrap()
+///    .services(["S3"]).unwrap()
+///    .build();
 /// let filtered_results = aws_ip_ranges.filter(&filter);
 /// ```
 pub fn get_ranges() -> Result<Box<AwsIpRanges>> {

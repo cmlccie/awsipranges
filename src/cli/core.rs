@@ -1,8 +1,8 @@
 use crate::cli;
-use awsipranges::AwsIpRanges;
+use awsipranges::{AwsIpRanges, Filter, FilterBuilder, Result};
+use cli::utils::to_lowercase;
 use ipnetwork::IpNetwork;
 use log::error;
-use std::{collections::BTreeSet, rc::Rc};
 
 /*-------------------------------------------------------------------------------------------------
   Core functions
@@ -30,69 +30,44 @@ pub fn parse_prefixes(args: &cli::Args) -> Option<Vec<IpNetwork>> {
   Build AWS IP Ranges filter from CLI arguments
 --------------------------------------------------------------------------------------*/
 
-pub fn build_filter(args: &cli::Args, aws_ip_ranges: &AwsIpRanges) -> awsipranges::Filter {
-    // Build Filters
-    let prefix_type = match (args.ipv4, args.ipv6) {
-        (true, false) => Some(awsipranges::PrefixType::IPv4),
-        (false, true) => Some(awsipranges::PrefixType::IPv6),
-        _ => None,
+pub fn build_filter(args: &cli::Args, aws_ip_ranges: &AwsIpRanges) -> Result<Filter> {
+    let mut filter = FilterBuilder::new(aws_ip_ranges);
+
+    // Prefix Type
+    if args.ipv4 {
+        filter = filter.ipv4();
     };
 
-    let regions: Option<BTreeSet<Rc<str>>> = args.include_regions.as_ref().map(|regions| {
-        regions
+    if args.ipv6 {
+        filter = filter.ipv6();
+    };
+
+    // Regions
+    if let Some(include_regions) = &args.include_regions {
+        let include_regions: Vec<String> = include_regions
             .iter()
-            .filter_map(|region| {
-                let region = crate::cli::utils::to_lowercase(region, ["GLOBAL"]);
-                aws_ip_ranges.get_region(&region).or_else(|| {
-                    error!(
-                        "Invalid region or region not found in AWS IP Ranges: {:?}",
-                        region
-                    );
-                    None
-                })
-            })
-            .collect()
-    });
+            .map(|region| to_lowercase(region, ["GLOBAL"]))
+            .collect();
+        filter = filter.regions(include_regions)?;
+    };
 
-    let network_border_groups: Option<BTreeSet<Rc<str>>> =
-        args.include_network_border_groups
-            .as_ref()
-            .map(|network_border_groups| {
-                network_border_groups
-                    .iter()
-                    .filter_map(|network_border_group| {
-                        let network_border_group = crate::cli::utils::to_lowercase(network_border_group, ["GLOBAL"]);
-                        aws_ip_ranges.get_network_border_group(&network_border_group).or_else(|| {
-                                error!(
-                                    "Invalid network border group or network border group not found in AWS IP Ranges: `{:?}`",
-                                    network_border_group
-                                );
-                                None
-                            })
-                    })
-                    .collect()
-            });
-
-    let services: Option<BTreeSet<Rc<str>>> = args.include_services.as_ref().map(|services| {
-        services
+    // Network Border Groups
+    if let Some(include_network_border_groups) = &args.include_network_border_groups {
+        let include_network_border_groups: Vec<String> = include_network_border_groups
             .iter()
-            .filter_map(|service| {
-                let service = service.to_uppercase();
-                aws_ip_ranges.get_service(&service).or_else(|| {
-                    error!(
-                        "Invalid service or service not found in AWS IP Ranges: {:?}",
-                        service
-                    );
-                    None
-                })
-            })
-            .collect()
-    });
+            .map(|group| to_lowercase(group, ["GLOBAL"]))
+            .collect();
+        filter = filter.network_border_groups(include_network_border_groups)?;
+    };
 
-    awsipranges::Filter {
-        prefix_type,
-        regions,
-        network_border_groups,
-        services,
-    }
+    // Services
+    if let Some(include_services) = &args.include_services {
+        let include_services: Vec<String> = include_services
+            .iter()
+            .map(|service| service.to_uppercase())
+            .collect();
+        filter = filter.services(include_services)?;
+    };
+
+    Ok(filter.build())
 }
