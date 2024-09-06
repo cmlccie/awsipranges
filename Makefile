@@ -1,4 +1,4 @@
-.PHONY: update format lint test build release install uninstall clean demo
+.PHONY: update format lint tests build release install uninstall docs clean demo
 
 .DEFAULT_GOAL := build
 
