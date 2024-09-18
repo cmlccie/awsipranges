@@ -28,7 +28,7 @@ pub struct FilterBuilder<'a> {
 impl<'a> FilterBuilder<'a> {
     /// Create a new [FilterBuilder] object for an [AwsIpRanges] object. By default, no
     /// filter parameters are set. Set the desired filter parameters using the builder
-    /// methods and then call the [FilterBuilder::build] method to create the [Filter]
+    /// methods and then call the [FilterBuilder::build] method to create a [Filter]
     /// object.
     ///
     /// ```rust
@@ -43,6 +43,10 @@ impl<'a> FilterBuilder<'a> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// For convenience, you can use the [AwsIpRanges::filter_builder] method to create
+    /// a [FilterBuilder] object, set your desired filter parameters, and execute the
+    /// [FilterBuilder::filter] operation in a  single method chain.
     pub fn new(aws_ip_ranges: &'a AwsIpRanges) -> Self {
         Self {
             aws_ip_ranges,
@@ -142,17 +146,27 @@ impl<'a> FilterBuilder<'a> {
     }
 
     /*-------------------------------------------------------------------------
-      Build Method
+      Build
     -------------------------------------------------------------------------*/
 
     /// Build the [Filter] object with the provided filter parameters.
-    pub fn build(self) -> Filter {
+    pub fn build(&self) -> Filter {
         Filter {
             prefix_type: self.prefix_type,
-            regions: self.regions,
-            network_border_groups: self.network_border_groups,
-            services: self.services,
+            regions: self.regions.clone(),
+            network_border_groups: self.network_border_groups.clone(),
+            services: self.services.clone(),
         }
+    }
+
+    /*-------------------------------------------------------------------------
+      Filter
+    -------------------------------------------------------------------------*/
+
+    /// Filter the AWS IP Ranges based on the provided filter parameters.
+    pub fn filter(&self) -> Box<AwsIpRanges> {
+        let filter = self.build();
+        self.aws_ip_ranges.filter(&filter)
     }
 }
 

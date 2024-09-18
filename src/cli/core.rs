@@ -1,5 +1,5 @@
 use crate::cli;
-use awsipranges::{AwsIpRanges, Filter, FilterBuilder, Result};
+use awsipranges::{AwsIpRanges, Filter, Result};
 use cli::utils::to_lowercase;
 use ipnetwork::IpNetwork;
 use log::error;
@@ -31,7 +31,7 @@ pub fn parse_prefixes(args: &cli::Args) -> Option<Vec<IpNetwork>> {
 --------------------------------------------------------------------------------------*/
 
 pub fn build_filter(args: &cli::Args, aws_ip_ranges: &AwsIpRanges) -> Result<Filter> {
-    let mut filter = FilterBuilder::new(aws_ip_ranges);
+    let mut filter = aws_ip_ranges.filter_builder();
 
     // Prefix Type
     if args.ipv4 {

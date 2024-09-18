@@ -12,25 +12,27 @@ use std::{thread, time};
 
 /// _**Simple library interface**_ quickly retrieves and parses the AWS IP Ranges using the default
 /// client configuration. Returns a boxed [AwsIpRanges] object that allows you to quickly query
-/// ([search](AwsIpRanges::search()), [filter](AwsIpRanges::filter()), etc.) the AWS IP Ranges.
+/// ([search](AwsIpRanges::search), [filter](AwsIpRanges::filter_builder), etc.) the AWS IP Ranges.
 ///
-/// ```
+/// ```rust
+/// # fn main() -> awsipranges::Result<()> {
 /// use ipnetwork::IpNetwork;
 ///
 /// // Get the AWS IP Ranges
-/// let aws_ip_ranges = awsipranges::get_ranges().unwrap();
+/// let aws_ip_ranges = awsipranges::get_ranges()?;
 ///
 /// // Search for IP Prefixes
 /// let search_prefixes: Vec<IpNetwork> = vec!["3.141.102.225".parse().unwrap()];
 /// let search_results = aws_ip_ranges.search(&search_prefixes);
 ///
 /// // Filter the AWS IP Ranges
-/// let filter = awsipranges::FilterBuilder::new(&aws_ip_ranges)
+/// let filtered_results = aws_ip_ranges.filter_builder()
 ///    .ipv4()
-///    .regions(["us-east-2"]).unwrap()
-///    .services(["S3"]).unwrap()
-///    .build();
-/// let filtered_results = aws_ip_ranges.filter(&filter);
+///    .regions(["us-east-2"])?
+///    .services(["S3"])?
+///    .filter();
+/// # Ok(())
+/// # }
 /// ```
 pub fn get_ranges() -> Result<Box<AwsIpRanges>> {
     Client::new().get_ranges()

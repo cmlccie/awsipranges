@@ -1,5 +1,5 @@
 use awsipranges::ipnetwork::IpNetwork;
-use awsipranges::{FilterBuilder, Result};
+use awsipranges::Result;
 
 fn main() -> Result<()> {
     // Get the AWS IP Ranges
@@ -21,12 +21,12 @@ fn main() -> Result<()> {
     }
 
     // Filter the AWS IP Ranges
-    let filter = FilterBuilder::new(&aws_ip_ranges)
+    let filtered_ranges = aws_ip_ranges
+        .filter_builder()
         .ipv4()
         .regions(["us-west-2"])?
         .services(["S3"])?
-        .build();
-    let filtered_ranges = aws_ip_ranges.filter(&filter);
+        .filter();
     for aws_ip_prefix in filtered_ranges.prefixes().values() {
         println!("{:?}", aws_ip_prefix);
     }

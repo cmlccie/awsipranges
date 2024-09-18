@@ -1,6 +1,7 @@
 use crate::core::aws_ip_prefix::AwsIpPrefix;
 use crate::core::errors::Result;
 use crate::core::filter::Filter;
+use crate::core::filter::FilterBuilder;
 use crate::core::json;
 use crate::core::search_results::SearchResults;
 use crate::core::utils;
@@ -151,6 +152,18 @@ impl AwsIpRanges {
     -------------------------------------------------------------------------*/
 
     /// Search for the AWS IP Prefixes that contain the provided [IpNetwork] CIDRs.
+    ///
+    /// ```rust
+    /// # fn main() -> awsipranges::Result<()> {
+    /// use ipnetwork::IpNetwork;
+    ///
+    /// let aws_ip_ranges = awsipranges::get_ranges()?;
+    ///
+    /// let search_prefixes: Vec<IpNetwork> = vec!["3.141.102.225".parse().unwrap()];
+    /// let search_results = aws_ip_ranges.search(&search_prefixes);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn search<'p, I>(&self, values: I) -> Box<SearchResults>
     where
         I: IntoIterator<Item = &'p IpNetwork>,
@@ -192,7 +205,42 @@ impl AwsIpRanges {
       Filter
     -------------------------------------------------------------------------*/
 
-    /// Filter the AWS IP Prefixes using the provided [Filter].
+    /// Create a [FilterBuilder] to filter the AWS IP Ranges.
+    ///
+    /// ```rust
+    /// # fn main() -> awsipranges::Result<()> {
+    /// let aws_ip_ranges = awsipranges::get_ranges()?;
+    ///
+    /// let filtered_ranges = aws_ip_ranges.filter_builder()
+    ///     .ipv4()
+    ///     .regions(["us-west-1"])?
+    ///     .network_border_groups(["us-west-2-sea-1"])?
+    ///     .services(["EC2"])?
+    ///     .filter();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn filter_builder(&self) -> FilterBuilder {
+        FilterBuilder::new(self)
+    }
+
+    /// Filter the AWS IP Ranges using the provided [Filter].
+    ///
+    /// ```rust
+    /// # fn main() -> awsipranges::Result<()> {
+    /// let aws_ip_ranges = awsipranges::get_ranges()?;
+    ///
+    /// let filter = awsipranges::FilterBuilder::new(&aws_ip_ranges)
+    ///     .ipv4()
+    ///     .regions(["us-west-1"])?
+    ///     .network_border_groups(["us-west-2-sea-1"])?
+    ///     .services(["EC2"])?
+    ///     .build();
+    ///
+    /// let filtered_ranges = aws_ip_ranges.filter(&filter);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn filter(&self, filter: &Filter) -> Box<AwsIpRanges> {
         let filtered_aws_ip_prefix_map: BTreeMap<IpNetwork, AwsIpPrefix> = self
             .prefixes

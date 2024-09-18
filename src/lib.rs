@@ -7,7 +7,8 @@
 -------------------------------------------------------------------------------------------------*/
 
 //! `awsipranges` allows you to quickly and efficiently search, filter, and use public
-//! [AWS IP address ranges](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-ranges.html).
+//! [AWS IP address ranges](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-ranges.html)
+//! answering questions like:
 //!
 //! - Is some IPv4/IPv6 `<address>` a public AWS IP address?
 //!   - What region is it in?
