@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2024-09-18
+
+### 🚀 Features
+
+- [**breaking**] Refactor BlockingClient to Client add ClientBuilder
+- Improve Client error handling logic
+- _(filter_builder)_ Add `.filter_builder()` and `.filter()` convenience methods
+
+### 🚜 Refactor
+
+- Client module
+- [**breaking**] Update the library interfaces
+- Module structure and update docs
+
+### 📚 Documentation
+
+- Add lib_demo.rs example
+
+### 🧪 Testing
+
+- Add environment variable configuration test and combine getter and setter method tests
+- Add integration tests
+
+### ⚙️ Miscellaneous Tasks
+
+- Run tests on all branches except main
+- Log test errors
+
 ## [0.7.0] - 2024-08-07
 
 ### 🚀 Features

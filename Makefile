@@ -60,6 +60,9 @@ uninstall:
 docs:
 	cargo doc --workspace --no-deps --open
 
+CHANGELOG.md:
+	git cliff > CHANGELOG.md
+
 clean:
 	cargo clean
 	rm -rf debug/
