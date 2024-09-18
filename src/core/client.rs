@@ -1,4 +1,4 @@
-use crate::core::awsipranges::AwsIpRanges;
+use crate::core::aws_ip_ranges::AwsIpRanges;
 use crate::core::errors::{Error, Result};
 use log::{info, warn};
 use std::env;
@@ -107,19 +107,12 @@ impl Default for ClientBuilder {
 }
 
 impl ClientBuilder {
-    /// Create a new [ClientBuilder] reading initial configuration values from
-    /// environment variables when set and default values when the environment
-    /// variables are not set.
-    ///
-    /// The environment variables used to set the initial configuration values
-    /// are:
-    /// - `AWSIPRANGES_URL`
-    /// - `AWSIPRANGES_CACHE_FILE`
-    /// - `AWSIPRANGES_CACHE_TIME`
-    /// - `AWSIPRANGES_RETRY_COUNT`
-    /// - `AWSIPRANGES_RETRY_INITIAL_DELAY`
-    /// - `AWSIPRANGES_RETRY_BACKOFF_FACTOR`
-    /// - `AWSIPRANGES_RETRY_TIMEOUT`
+    //! Create a new [ClientBuilder] reading initial configuration values from
+    //! environment variables when set and default values when the environment
+    //! variables are not set.
+    //!
+    #![doc = include_str!("../../docs/lib_configuration_table.md")]
+
     pub fn new() -> Self {
         let default = ClientBuilder::default();
 
@@ -212,6 +205,7 @@ impl ClientBuilder {
       Build Method
     -------------------------------------------------------------------------*/
 
+    /// Build a new [Client] instance with the configured values.
     pub fn build(&self) -> Client {
         Client {
             url: self.url.clone(),
@@ -278,6 +272,11 @@ impl Default for Client {
 }
 
 impl Client {
+    //! Create a new [Client] reading initial configuration values from
+    //! environment variables when set and default values when the environment
+    //! variables are not set.
+    //!
+    #![doc = include_str!("../../docs/lib_configuration_table.md")]
     pub fn new() -> Self {
         ClientBuilder::new().build()
     }

@@ -58,7 +58,7 @@ uninstall:
 	cargo uninstall
 
 docs:
-	cargo doc --open
+	cargo doc --workspace --no-deps --open
 
 clean:
 	cargo clean
