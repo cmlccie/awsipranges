@@ -28,7 +28,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - uses: mozilla-actions/sccache-action@v0.0.8
+      - uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Install code coverage dependencies
         run: |
