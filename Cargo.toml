@@ -24,7 +24,7 @@ csv = "1.4.0"
 dirs = "6.0.0"
 ipnetwork = { version = "0.21.1", features = ["serde"] }
 log = "0.4.29"
-reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+reqwest = { version = "0.12.25", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 serde_json = "1.0.145"
 stderrlog = "0.6.0"
