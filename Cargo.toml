@@ -19,7 +19,7 @@ eula = false
 chrono = { version = "0.4.42", features = ["serde"] }
 clap = { version = "4.5.54", features = ["derive", "wrap_help"] }
 clap-verbosity-flag = "3.0.4"
-comfy-table = "7.2.1"
+comfy-table = "7.2.2"
 csv = "1.4.0"
 dirs = "6.0.0"
 ipnetwork = { version = "0.21.1", features = ["serde"] }
