@@ -16,7 +16,7 @@ license = false
 eula = false
 
 [dependencies]
-chrono = { version = "0.4.43", features = ["serde"] }
+chrono = { version = "0.4.44", features = ["serde"] }
 clap = { version = "4.5.60", features = ["derive", "wrap_help"] }
 clap-verbosity-flag = "3.0.4"
 comfy-table = "7.2.2"
