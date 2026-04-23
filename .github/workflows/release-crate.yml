@@ -31,7 +31,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Checkout
         uses: actions/checkout@v6
