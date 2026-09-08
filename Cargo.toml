@@ -21,7 +21,7 @@ clap = { version = "4.6.1", features = ["derive", "wrap_help"] }
 clap-verbosity-flag = "3.0.4"
 comfy-table = "8.0.0"
 csv = "1.4.0"
-dirs = "6.0.0"
+dirs = "7.0.0"
 ipnetwork = { version = "0.21.1", features = ["serde"] }
 log = "0.4.32"
 reqwest = { version = "0.12.28", default-features = false, features = ["blocking", "json", "rustls-tls"] }
