@@ -1,5 +1,4 @@
 use awsipranges::AwsIpRanges;
-use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::{NOTHING, UTF8_FULL};
 use comfy_table::*;
 
@@ -15,8 +14,7 @@ pub fn prefix_table(aws_ip_ranges: &AwsIpRanges) {
     // Prefix Table
     let mut prefix_table = Table::new();
     prefix_table
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS)
+        .load_style(UTF8_FULL.with_rounded_corners())
         .set_content_arrangement(ContentArrangement::Dynamic);
 
     prefix_table.set_header(vec![
@@ -64,7 +62,7 @@ pub fn prefix_table(aws_ip_ranges: &AwsIpRanges) {
     let create_date = aws_ip_ranges.create_date();
 
     let mut summary_table = Table::new();
-    summary_table.load_preset(NOTHING);
+    summary_table.load_style(NOTHING);
 
     summary_table.add_row(vec![
         Cell::new(aws_ip_prefix_count),

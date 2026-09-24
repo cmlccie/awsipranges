@@ -7,7 +7,8 @@ homepage = "https://github.com/cmlccie/awsipranges"
 repository = "https://github.com/cmlccie/awsipranges"
 documentation = "https://docs.rs/awsipranges/latest/awsipranges/"
 version = "0.8.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.88"
 
 [package.metadata.wix]
 upgrade-guid = "678FEBC6-FF95-4E28-98D3-E955792A85EE"
@@ -24,7 +25,7 @@ csv = "1.4.0"
 dirs = "7.0.0"
 ipnetwork = { version = "0.21.1", features = ["serde"] }
 log = "0.4.32"
-reqwest = { version = "0.12.28", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+reqwest = { version = "0.13.5", features = ["blocking"] }
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 serde_json = "1.0.150"
 stderrlog = "0.6.0"
@@ -46,7 +47,7 @@ lto = "thin"
 # Config for 'cargo dist'
 [workspace.metadata.dist]
 # The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
-cargo-dist-version = "0.19.1"
+cargo-dist-version = "0.33.0"
 # CI backends to support
 ci = "github"
 # The installers to generate for each app
@@ -70,9 +71,3 @@ pr-run-mode = "plan"
 install-updater = false
 # Skip checking whether the specified configuration files are up to date
 allow-dirty = ["ci"]
-
-[workspace.metadata.dist.github-custom-runners]
-aarch64-apple-darwin = "macos-latest"
-x86_64-apple-darwin = "macos-13"
-x86_64-pc-windows-msvc = "windows-latest"
-x86_64-unknown-linux-gnu = "ubuntu-latest"

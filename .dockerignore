@@ -6,3 +6,7 @@
 !Cargo.lock
 !src/
 !demo/
+
+# Included in the crate docs via include_str!
+!docs/
+!examples/

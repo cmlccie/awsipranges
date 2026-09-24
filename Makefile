@@ -1,4 +1,4 @@
-.PHONY: update format lint tests build release install uninstall docs clean demo
+.PHONY: update format line-count lint tests msrv coverage coverage_report build release install uninstall docs clean demo publish-demo
 
 .DEFAULT_GOAL := build
 
@@ -17,32 +17,22 @@ line-count:
 
 lint:
 	cargo fmt --check
-	cargo check
-	cargo clippy
+	cargo clippy --all-targets -- -D warnings
+	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
+# Tests share process-wide env vars and a cache file; run them single-threaded.
 tests:
 	RUST_LOG=debug RUST_BACKTRACE=1 cargo test -- --test-threads=1
 
-coverage: export CARGO_INCREMENTAL=0
-coverage: export CARGO_ENCODED_RUSTFLAGS=-Cinstrument-coverage
-coverage: export LLVM_PROFILE_FILE=cargo-test-%p-%m.profraw
+msrv:
+	cargo +$$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml) check --all-targets --locked
+
 coverage:
 	@mkdir -p target/coverage
-	@rm -rf target/coverage/*
-	cargo test -- --test-threads=1
-	@grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/coverage/tests.lcov
-	@find . -name '*.profraw' -delete
+	cargo llvm-cov --lcov --output-path target/coverage/tests.lcov -- --test-threads=1
 
-coverage_report: export CARGO_INCREMENTAL=0
-coverage_report: export CARGO_ENCODED_RUSTFLAGS=-Cinstrument-coverage
-coverage_report: export LLVM_PROFILE_FILE=cargo-test-%p-%m.profraw
 coverage_report:
-	@mkdir -p target/coverage
-	@rm -rf target/coverage/*
-	cargo test -- --test-threads=1
-	@grcov . --binary-path ./target/debug/deps/ -s . -t html --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/coverage/html
-	@find . -name '*.profraw' -delete
-	open target/coverage/html/index.html
+	cargo llvm-cov --html --open -- --test-threads=1
 
 
 build:
