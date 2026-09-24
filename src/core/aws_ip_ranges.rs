@@ -220,7 +220,7 @@ impl AwsIpRanges {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn filter_builder(&self) -> FilterBuilder {
+    pub fn filter_builder(&self) -> FilterBuilder<'_> {
         FilterBuilder::new(self)
     }
 
