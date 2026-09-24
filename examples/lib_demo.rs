@@ -1,5 +1,5 @@
-use awsipranges::ipnetwork::IpNetwork;
 use awsipranges::Result;
+use awsipranges::ipnetwork::IpNetwork;
 
 fn main() -> Result<()> {
     // Get the AWS IP Ranges

@@ -7,7 +7,8 @@ homepage = "https://github.com/cmlccie/awsipranges"
 repository = "https://github.com/cmlccie/awsipranges"
 documentation = "https://docs.rs/awsipranges/latest/awsipranges/"
 version = "0.8.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.88"
 
 [package.metadata.wix]
 upgrade-guid = "678FEBC6-FF95-4E28-98D3-E955792A85EE"

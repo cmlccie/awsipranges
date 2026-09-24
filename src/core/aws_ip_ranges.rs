@@ -720,22 +720,30 @@ pub(crate) mod tests {
 
         let search_results = aws_ip_ranges.search(&search_networks);
 
-        assert!(search_results
-            .prefix_matches
-            .contains_key(&search_networks[0])); // Full prefix match
-        assert!(search_results
-            .prefix_matches
-            .contains_key(&search_networks[3])); // Full prefix match
+        assert!(
+            search_results
+                .prefix_matches
+                .contains_key(&search_networks[0])
+        ); // Full prefix match
+        assert!(
+            search_results
+                .prefix_matches
+                .contains_key(&search_networks[3])
+        ); // Full prefix match
 
         assert_eq!(aws_ip_ranges.prefixes().len(), 6); // Original AWS IP ranges unchanged
         assert_eq!(search_results.aws_ip_ranges.prefixes.len(), 4); // Search results AWS IP ranges
 
-        assert!(search_results
-            .prefixes_not_found
-            .contains(&search_networks[2])); // No prefix match
-        assert!(search_results
-            .prefixes_not_found
-            .contains(&search_networks[5])); // No prefix match
+        assert!(
+            search_results
+                .prefixes_not_found
+                .contains(&search_networks[2])
+        ); // No prefix match
+        assert!(
+            search_results
+                .prefixes_not_found
+                .contains(&search_networks[5])
+        ); // No prefix match
     }
 
     /*-------------------------------------------------------------------------
