@@ -385,7 +385,7 @@ impl Client {
     /// Get the AWS IP Ranges JSON from the cache file or URL.
     fn get_json(&self) -> Result<String> {
         info!("Cache time {} seconds", self.cache_time);
-        info!("Cache file path: {:?}", &self.cache_file);
+        info!("Cache file path: {:?}", self.cache_file);
 
         // Check if cache file exists
         let cache_exists = fs::metadata(&self.cache_file).is_ok();
@@ -492,14 +492,14 @@ impl Client {
             .inspect(|_| {
                 info!(
                     "Successfully cached AWS IP Ranges to: {:?}",
-                    &self.cache_file
+                    self.cache_file
                 )
             })
             .map_err(Error::from)
             .inspect_err(|error| {
                 log::error!(
                     "Failed to cache AWS IP Ranges to `{:?}`: {}",
-                    &self.cache_file,
+                    self.cache_file,
                     error
                 )
             })
@@ -513,13 +513,13 @@ impl Client {
             .inspect(|_| {
                 info!(
                     "Successfully read AWS IP Ranges JSON from: {:?}",
-                    &self.cache_file
+                    self.cache_file
                 )
             })
             .inspect_err(|error| {
                 log::error!(
                     "Failed to read AWS IP Ranges JSON from `{:?}`: {}",
-                    &self.cache_file,
+                    self.cache_file,
                     error
                 )
             })
