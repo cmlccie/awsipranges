@@ -36,7 +36,7 @@ mod tests {
     use serde::Serialize;
     use serde_json::{Value, json};
 
-    #[derive(Serialize)]
+    #[derive(Debug, Deserialize, PartialEq, Serialize)]
     struct TestDateTime {
         #[serde(with = "super")]
         datetime: DateTime<Utc>,
@@ -58,9 +58,18 @@ mod tests {
     fn test_deserialize() {
         let test_datetime_json = r#"{"datetime": "2022-01-01-00-00-00"}"#;
 
-        let deserialized_value: Value = serde_json::from_str(test_datetime_json).unwrap();
-        let expected_value: Value = json!({"datetime": "2022-01-01-00-00-00"});
+        let deserialized_value: TestDateTime = serde_json::from_str(test_datetime_json).unwrap();
+        let expected_value = TestDateTime {
+            datetime: Utc.with_ymd_and_hms(2022, 1, 1, 0, 0, 0).unwrap(),
+        };
 
         assert_eq!(deserialized_value, expected_value);
+    }
+
+    #[test]
+    fn test_deserialize_invalid_format() {
+        let test_datetime_json = r#"{"datetime": "2022-01-01T00:00:00Z"}"#;
+
+        assert!(serde_json::from_str::<TestDateTime>(test_datetime_json).is_err());
     }
 }
