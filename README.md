@@ -10,7 +10,7 @@ _Quickly query the AWS IP Ranges_
 
 ---
 
-![Demo](https://vhs.charm.sh/vhs-10iTXUYl2aeKdyYoMvI6C0.gif)
+![Demo](https://vhs.charm.sh/vhs-1FAFHhv4Tk3zcBE91KEUOF.gif)
 
 `awsipranges` allows you to search, filter, and use public [AWS IP address ranges](https://docs.aws.amazon.com/vpc/latest/userguide/aws-ip-ranges.html) from the command line without writing complicated JSON parsing scripts or commands. This single-purpose CLI tool allows you to quickly answer questions like:
 
@@ -41,11 +41,11 @@ If you find this project useful, please consider giving it a star ⭐ on [GitHub
 
 You can build and install `awsipranges` from source or install pre-built binaries. `awsipranges` supports:
 
-| OS              | arm64 (AArch64)                         | amd64 (x86_64)                          |
-| --------------- | --------------------------------------- | --------------------------------------- |
-| **macOS**       | ✅ ⏬ Apple silicon                       | ✅ ⏬ Intel silicon                       |
+| OS              | arm64 (AArch64)                             | amd64 (x86_64)                              |
+| --------------- | ------------------------------------------- | ------------------------------------------- |
+| **macOS**       | ✅ ⏬ Apple silicon                         | ✅ ⏬ Intel silicon                         |
 | **Linux**       | ✅ ⏬ GNU (glibc) </BR> ✅ ⏬ Musl (static) | ✅ ⏬ GNU (glibc) </BR> ✅ ⏬ Musl (static) |
-| **Windows 10+** |                                         | ✅ ⏬ MSVC                                |
+| **Windows 10+** |                                             | ✅ ⏬ MSVC                                  |
 
 ✅ = Supported ⏬ = Pre-built binaries available
 

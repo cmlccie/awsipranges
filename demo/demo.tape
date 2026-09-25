@@ -5,6 +5,19 @@ Set FontSize 20
 Set Width 1280
 Set Height 640
 
+Type "# Lookup hostnames"
+Sleep 500ms
+Enter
+Type "awsipranges amazon.com"
+Sleep 500ms
+Enter
+Sleep 4s
+
+Type "clear"
+Sleep 500ms
+Enter
+
+
 Type "# Lookup addresses"
 Sleep 500ms
 Enter
