@@ -39,22 +39,29 @@ Use the Makefile targets; they mirror CI.
   build time (including in the Docker build context; see `.dockerignore`).
 - `src/core/` — the library (`mod core` is private; everything public is re-exported
   from `lib.rs`):
-  - `client.rs` — `Client`/`ClientBuilder`/`get_ranges()`. Blocking reqwest, a local
-    cache with a freshness window, exponential-backoff retries, and a fallback to a
-    stale cache. Configured from `AWSIPRANGES_*` env vars in `::new()` and ignores
-    them in `::default()`.
+  - `client.rs` — `Client`/`ClientBuilder`/`get_ranges()`/`CacheMode`. Blocking
+    reqwest, a local cache with a freshness window, and exponential-backoff retries
+    within a `retry_timeout` deadline (each request's timeout is the remaining budget).
+    `CacheMode::Auto` falls back to a stale cache; `Refresh`/`Offline` never fall back.
+    Configured from `AWSIPRANGES_*` env vars in `::new()` (via `from_env(lookup)`) and
+    ignores them in `::default()`. Log failures that are returned as `Err` at warn or
+    debug level, never error, because the caller reports them.
   - `aws_ip_ranges.rs` — `AwsIpRanges`: a `BTreeMap<IpNetwork, AwsIpPrefix>` plus
     region, network border group, and service sets of interned `Rc<str>`.
-    Supernet search uses a bounded `BTreeMap::range` scan.
+    Supernet search uses a bounded `BTreeMap::range` scan (`supernet_prefixes`); the
+    lower bound is clamped so broad searches like `0.0.0.0/0` can't invert the range.
   - `filter.rs` — `FilterBuilder` → `Filter`. AND across filter kinds, OR within one.
     Unknown region, service, or group values return `Err`.
   - `json.rs` / `datetime.rs` — zero-copy serde structs for the AWS JSON and its
     `%Y-%m-%d-%H-%M-%S` date format.
-  - `errors.rs` — `Error = Box<dyn std::error::Error + Send + Sync>`; no custom error
-    enum yet.
+  - `errors.rs` — `#[non_exhaustive]` `Error` enum (thiserror). Wrap third-party errors
+    as a boxed `source` rather than exposing their types in the public API.
 - `src/main.rs` + `src/cli/` — clap-derive CLI and output formatters (comfy-table,
-  CSV). The CLI normalizes case: regions and groups are lowercased except `GLOBAL`,
-  and services are uppercased. It exits with status 1 when nothing matches.
+  JSON, CSV). The CLI normalizes case: regions and groups are lowercased except
+  `GLOBAL`, and services are uppercased. Exit status follows grep: 0 = match,
+  1 = no match, 2 = error. `main` prints errors with their causes and a hint, and
+  treats a broken pipe as success. Output functions write to `&mut impl Write`; don't
+  use `println!` (it panics when stdout is closed, e.g. `| head`).
 
 `Rc<str>` makes `AwsIpRanges` `!Send`/`!Sync`. Changing it to `Arc<str>` affects the
 public API.

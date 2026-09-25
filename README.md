@@ -113,9 +113,13 @@ Options:
                                                      Include: Network Border Group
   -s, --service <SERVICE>...                         Include: Service
   -o, --output <OUTPUT>                              Output format [default: table]
-                                                     [possible values: table, cidr, netmask, regions,
-                                                     network-border-groups, services]
+                                                     [possible values: table, json, cidr, netmask,
+                                                     regions, network-border-groups, services]
       --csv <CSV_FILE>                               Save the results to a CSV file
+      --refresh                                      Download the AWS IP Ranges even if the cache is fresh
+      --offline                                      Use only the cached AWS IP Ranges; never download
+      --completions <SHELL>                          Print a shell completion script and exit
+                                                     [possible values: bash, elvish, fish, powershell, zsh]
   -v, --verbose...                                   Increase logging verbosity
   -q, --quiet...                                     Decrease logging verbosity
   -h, --help                                         Print help
@@ -134,19 +138,48 @@ awsipranges 3.141.102.225 2600:1f1a:4000:a03a::/64
 # IPv4 prefixes used by S3 in us-west-2, one CIDR per line
 awsipranges --ipv4 --service S3 --region us-west-2 --output cidr
 
+# JSON for other tools: the services that use an address
+awsipranges --output json 44.192.140.65 | jq -r '.prefixes[].services[]'
+
 # List the network border groups (Local and Wavelength Zones) in the data set
 awsipranges --output network-border-groups
 
 # Save the EC2 prefixes in us-east-1 to a CSV file
 awsipranges --service EC2 --region us-east-1 --csv ec2-us-east-1.csv
+
+# Work without network access, using the cached data
+awsipranges --offline 44.192.140.65
 ```
 
-Filters are combined: a prefix must match every filter you provide, and any of the values you provide for a single filter. Region and network-border-group names are case-insensitive (`GLOBAL` is accepted for global prefixes), as are service names. When no prefixes match, `awsipranges` prints a message to stderr and exits with status code `1`, which makes it easy to use in scripts:
+Filters are combined: a prefix must match every filter you provide, and any of the values you provide for a single filter. Region and network-border-group names are case-insensitive (`GLOBAL` is accepted for global prefixes), as are service names.
+
+### Exit Status
+
+| Status | Meaning                                                                          |
+| ------ | -------------------------------------------------------------------------------- |
+| `0`    | One or more AWS IP Prefixes matched                                              |
+| `1`    | No AWS IP Prefixes matched the provided criteria                                 |
+| `2`    | An error occurred (invalid arguments, unknown filter value, download failure...) |
+
+This makes `awsipranges` easy to use in scripts:
 
 ```shell
-if awsipranges --quiet --output cidr "$IP" > /dev/null 2>&1; then
-  echo "$IP is an AWS IP address"
-fi
+awsipranges --quiet --output cidr "$IP" > /dev/null
+case $? in
+  0) echo "$IP is an AWS IP address" ;;
+  1) echo "$IP is not an AWS IP address" ;;
+  *) echo "Lookup failed" >&2 ;;
+esac
+```
+
+### Shell Completions
+
+Generate a completion script for your shell and load it from your shell's configuration, for example:
+
+```shell
+awsipranges --completions bash > ~/.local/share/bash-completion/completions/awsipranges
+awsipranges --completions zsh > "${fpath[1]}/_awsipranges"
+awsipranges --completions fish > ~/.config/fish/completions/awsipranges.fish
 ```
 
 ### Configuration
@@ -161,9 +194,9 @@ fi
 | `AWSIPRANGES_RETRY_COUNT`          | `4`                                              | Maximum number of download attempts                       |
 | `AWSIPRANGES_RETRY_INITIAL_DELAY`  | `200` milliseconds                               | Delay before the first retry                              |
 | `AWSIPRANGES_RETRY_BACKOFF_FACTOR` | `2`                                              | Multiplier applied to the delay after each failed attempt |
-| `AWSIPRANGES_RETRY_TIMEOUT`        | `5000` milliseconds (5 seconds)                  | Stop retrying once this much time has elapsed             |
+| `AWSIPRANGES_RETRY_TIMEOUT`        | `30000` milliseconds (30 seconds)                | Maximum total time for the download, including retries    |
 
-If a download fails and a stale cache file exists, `awsipranges` falls back to the stale cache. HTTPS connections verify certificates against your operating system's trust store and honor the standard `HTTPS_PROXY`/`NO_PROXY` environment variables.
+If a download fails and a stale cache file exists, `awsipranges` falls back to the stale cache. Use `--refresh` to force a download (and fail if it fails) or `--offline` to use only the cache. HTTPS connections verify certificates against your operating system's trust store and honor the standard `HTTPS_PROXY`/`NO_PROXY` environment variables.
 
 ## Rust Library
 
