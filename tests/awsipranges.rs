@@ -176,6 +176,65 @@ fn command_search_broad_prefix_does_not_panic() {
     assert_eq!(code, 1, "{stderr}");
 }
 
+#[test]
+fn command_search_invalid_input_exits_2() {
+    for (value, message) in [
+        ("1.2.3", "not a valid IP address, CIDR, or hostname"),
+        (
+            "44.192.140.65/33",
+            "not a valid IP address, CIDR, or hostname",
+        ),
+        (
+            "not a hostname",
+            "not a valid IP address, CIDR, or hostname",
+        ),
+        ("https://example.com/", "looks like a URL"),
+    ] {
+        let (code, stdout, stderr) = run(awsipranges().arg(value));
+        assert_eq!(code, 2, "{value}");
+        assert!(stdout.is_empty(), "{value}");
+        assert!(stderr.contains(message), "{value}: {stderr}");
+    }
+}
+
+/*--------------------------------------------------------------------------------------
+  Search: Hostnames
+--------------------------------------------------------------------------------------*/
+
+#[test]
+fn command_search_hostname_resolves_addresses() {
+    // localhost resolves from the hosts file, without DNS, to non-AWS loopback addresses
+    let (code, stdout, stderr) = run(awsipranges().arg("localhost"));
+    assert_eq!(code, 1, "{stderr}");
+    assert!(stdout.is_empty());
+    assert!(stderr.contains("localhost resolves to "), "{stderr}");
+}
+
+#[test]
+fn command_search_unresolvable_hostname_exits_2() {
+    // The .invalid top-level domain never resolves (RFC 6761)
+    let (code, stdout, stderr) = run(awsipranges().arg("awsipranges-test.invalid"));
+    assert_eq!(code, 2);
+    assert!(stdout.is_empty());
+    assert!(
+        stderr.contains("error: failed to resolve awsipranges-test.invalid"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn command_search_partial_resolution_failure_shows_results_and_exits_2() {
+    let (code, stdout, stderr) = run(awsipranges().args([
+        "--output",
+        "cidr",
+        "44.192.140.65",
+        "awsipranges-test.invalid",
+    ]));
+    assert_eq!(code, 2);
+    assert_eq!(lines(&stdout), ["44.192.0.0/11", "44.192.140.64/28"]);
+    assert!(stderr.contains("failed to resolve awsipranges-test.invalid"));
+}
+
 /*--------------------------------------------------------------------------------------
   Filter
 --------------------------------------------------------------------------------------*/

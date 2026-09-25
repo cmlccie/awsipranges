@@ -50,6 +50,21 @@ fn main() -> ExitCode {
 }
 
 fn run(args: &cli::Args) -> Result<ExitCode, Box<dyn Error>> {
+    // Resolve hostnames to the IP addresses to search for
+    let resolved = cli::resolve::resolve_targets(&args.search, cli::resolve::system_resolver);
+    if !args.verbose.is_silent() {
+        for (hostname, addresses) in &resolved.hostnames {
+            let addresses: Vec<String> = addresses.iter().map(ToString::to_string).collect();
+            eprintln!("{hostname} resolves to {}", addresses.join(", "));
+        }
+    }
+    resolved.errors.iter().for_each(|error| report(error));
+
+    // Nothing left to search for: every target was a hostname that failed to resolve
+    if !args.search.is_empty() && resolved.networks.is_empty() {
+        return Ok(ExitCode::from(EXIT_ERROR));
+    }
+
     // Get AWS IP Ranges
     let cache_mode = match (args.refresh, args.offline) {
         (true, _) => CacheMode::Refresh,
@@ -61,11 +76,9 @@ fn run(args: &cli::Args) -> Result<ExitCode, Box<dyn Error>> {
         .build()
         .get_ranges()?;
 
-    // Search for CIDRs
-    let search_cidrs = cli::parse_prefixes(args);
-    let search_results = search_cidrs
-        .as_ref()
-        .map(|search_prefixes| aws_ip_ranges.search(search_prefixes));
+    // Search for the IP addresses and networks
+    let search_results =
+        (!args.search.is_empty()).then(|| aws_ip_ranges.search(&resolved.networks));
 
     // Apply Filters
     let filters_enabled = [
@@ -98,14 +111,21 @@ fn run(args: &cli::Args) -> Result<ExitCode, Box<dyn Error>> {
             .map(|search_results| &search_results.aws_ip_ranges))
         .unwrap_or(&aws_ip_ranges);
 
-    // Log CIDR search results
-    cli::log::search_results(&search_cidrs, &search_results);
+    // Log search results
+    cli::log::search_results(&resolved.networks, search_results.as_deref());
+
+    // Report failed hostname lookups in the exit status, after displaying any results
+    let resolve_failed = !resolved.errors.is_empty();
 
     if display_aws_ip_ranges.prefixes().is_empty() {
         if !args.verbose.is_silent() {
             eprintln!("\nNo AWS IP Prefixes match the provided criteria.\n");
         }
-        return Ok(ExitCode::from(EXIT_NO_MATCH));
+        return Ok(ExitCode::from(if resolve_failed {
+            EXIT_ERROR
+        } else {
+            EXIT_NO_MATCH
+        }));
     }
 
     // Save results to CSV file
@@ -127,7 +147,11 @@ fn run(args: &cli::Args) -> Result<ExitCode, Box<dyn Error>> {
     output(&mut out, display_aws_ip_ranges)?;
     out.flush()?;
 
-    Ok(ExitCode::SUCCESS)
+    Ok(if resolve_failed {
+        ExitCode::from(EXIT_ERROR)
+    } else {
+        ExitCode::SUCCESS
+    })
 }
 
 /// Whether an error is a write to a closed pipe.

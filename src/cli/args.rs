@@ -1,3 +1,4 @@
+use crate::cli::target::SearchTarget;
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -58,8 +59,10 @@ pub struct Args {
     #[command(flatten)]
     pub verbose: clap_verbosity_flag::Verbosity,
 
-    /// Find AWS IP Prefixes containing these IP addresses or networks
-    pub search_cidrs: Option<Vec<String>>,
+    /// Find AWS IP Prefixes containing these IP addresses, networks (CIDRs), or hostnames
+    /// (resolved to their IPv4 and IPv6 addresses)
+    #[arg(value_name = "IP|CIDR|HOSTNAME")]
+    pub search: Vec<SearchTarget>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]

@@ -26,6 +26,9 @@ Use the Makefile targets; they mirror CI.
   `core::test_utils::FIXTURE_JSON`.
 - **Test HTTP behavior with `core::test_utils::serve`**, a scripted loopback server
   (responses per connection: `HttpResponse::ok`, `::status`, `::Stall`), not the real URL.
+- Hostname tests don't depend on DNS: CLI tests use `localhost` (hosts file) and
+  `*.invalid` names (never resolve, RFC 6761); matching logic uses a fake resolver in
+  `cli/resolve.rs` unit tests.
 - Only a few smoke tests hit the network: `client::tests::test_get_ranges_from_aws`,
   `command_live_download`, the doctests, and the `lib_demo` example.
 - Don't mutate process environment variables in tests; use
@@ -62,6 +65,13 @@ Use the Makefile targets; they mirror CI.
   1 = no match, 2 = error. `main` prints errors with their causes and a hint, and
   treats a broken pipe as success. Output functions write to `&mut impl Write`; don't
   use `println!` (it panics when stdout is closed, e.g. `| head`).
+  - `cli/target.rs` — `SearchTarget` (clap value parser): an IP/CIDR, else a validated
+    hostname, else an "invalid input" error (exit 2). Hostnames whose last label is all
+    digits are rejected so malformed IPv4 addresses (`1.2.3`) aren't looked up.
+  - `cli/resolve.rs` — resolves hostnames to A + AAAA addresses with the system
+    resolver (`ToSocketAddrs`); the resolver is a function parameter, so tests pass
+    a fake. Failed lookups are reported, other results still print, and exit is 2.
+    Hostname resolution is CLI-only; the library stays DNS-free.
 
 `Rc<str>` makes `AwsIpRanges` `!Send`/`!Sync`. Changing it to `Arc<str>` affects the
 public API.
