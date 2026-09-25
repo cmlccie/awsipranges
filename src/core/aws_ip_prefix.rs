@@ -1,4 +1,5 @@
 use ipnetwork::IpNetwork;
+use serde::Serialize;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
@@ -7,8 +8,9 @@ use std::rc::Rc;
 -------------------------------------------------------------------------------------------------*/
 
 /// AWS IP Prefix record containing the IP prefix, region, network border group, and services
-/// associated with the prefix.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+/// associated with the prefix. Serializes (with [serde]) to an object with `prefix`, `region`,
+/// `network_border_group`, and `services` fields.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct AwsIpPrefix {
     /// IPv4 or IPv6 prefix.
     pub prefix: IpNetwork,
@@ -122,5 +124,19 @@ pub(crate) mod tests {
         assert_ne!(prefix1, prefix3); // Different regions
         assert_ne!(prefix1, prefix4); // Different network border groups
         assert_ne!(prefix1, prefix5); // Different services
+    }
+
+    #[test]
+    fn test_aws_ip_prefix_serialization() {
+        let json = serde_json::to_value(test_aws_ipv4_prefix()).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "prefix": "10.0.0.0/8",
+                "region": "us-east-1",
+                "network_border_group": "us-east-1",
+                "services": ["EC2"],
+            })
+        );
     }
 }

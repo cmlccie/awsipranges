@@ -1,6 +1,6 @@
 use crate::core::aws_ip_ranges::AwsIpRanges;
 use crate::core::errors::{Error, Result};
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -527,7 +527,7 @@ impl Client {
                     break Ok(json);
                 }
                 Err(error) => {
-                    log::error!("Get AWS IP Ranges from URL; Attempt {attempt}: FAILED: {error}");
+                    warn!("Get AWS IP Ranges from URL; Attempt {attempt}: FAILED: {error}");
 
                     let delay = Duration::from_millis(
                         self.retry_initial_delay
@@ -565,7 +565,7 @@ impl Client {
                     self.cache_file
                 )
             })
-            .inspect_err(|error| log::error!("{error}"))
+            .inspect_err(|error| warn!("{error}"))
     }
 
     /// Get the AWS IP Ranges JSON from the cache file.
@@ -582,7 +582,7 @@ impl Client {
                     self.cache_file
                 )
             })
-            .inspect_err(|error| log::error!("{error}"))
+            .inspect_err(|error| debug!("{error}"))
     }
 }
 
