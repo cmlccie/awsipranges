@@ -18,7 +18,6 @@ pub fn get_rc_str_from_set(value: &str, set: &BTreeSet<Rc<str>>) -> Option<Rc<st
 --------------------------------------------------------------------------------------*/
 
 pub mod ipnetwork {
-    use crate::core::errors::Result;
     use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 
     /*
@@ -42,17 +41,18 @@ pub mod ipnetwork {
         }
     }
 
-    pub fn new_network_prefix(ip_network: &IpNetwork, mask_bits: u8) -> Result<IpNetwork> {
+    /// Panics if `mask_bits` exceeds the address width (32 for IPv4, 128 for IPv6).
+    pub fn new_network_prefix(ip_network: &IpNetwork, mask_bits: u8) -> IpNetwork {
         let new_prefix = match ip_network {
-            IpNetwork::V4(ipv4_network) => {
-                IpNetwork::V4(Ipv4Network::new(ipv4_network.ip(), mask_bits)?)
-            }
-            IpNetwork::V6(ipv6_network) => {
-                IpNetwork::V6(Ipv6Network::new(ipv6_network.ip(), mask_bits)?)
-            }
+            IpNetwork::V4(ipv4_network) => IpNetwork::V4(
+                Ipv4Network::new(ipv4_network.ip(), mask_bits).expect("valid IPv4 mask bits"),
+            ),
+            IpNetwork::V6(ipv6_network) => IpNetwork::V6(
+                Ipv6Network::new(ipv6_network.ip(), mask_bits).expect("valid IPv6 mask bits"),
+            ),
         };
 
-        Ok(network_prefix(&new_prefix))
+        network_prefix(&new_prefix)
     }
 
     /*
@@ -136,8 +136,8 @@ mod tests {
         let expected_ipv4_prefix: IpNetwork = "10.0.0.0/16".parse().unwrap();
         let expected_ipv6_prefix: IpNetwork = "2001:db8::/48".parse().unwrap();
 
-        let actual_ipv4_prefix: IpNetwork = new_network_prefix(&original_ipv4_network, 16).unwrap();
-        let actual_ipv6_prefix: IpNetwork = new_network_prefix(&original_ipv6_network, 48).unwrap();
+        let actual_ipv4_prefix: IpNetwork = new_network_prefix(&original_ipv4_network, 16);
+        let actual_ipv6_prefix: IpNetwork = new_network_prefix(&original_ipv6_network, 48);
 
         assert_eq!(actual_ipv4_prefix, expected_ipv4_prefix);
         assert_eq!(actual_ipv6_prefix, expected_ipv6_prefix);

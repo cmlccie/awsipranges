@@ -1,6 +1,6 @@
 use crate::core::aws_ip_prefix::AwsIpPrefix;
 use crate::core::aws_ip_ranges::AwsIpRanges;
-use crate::core::errors::Result;
+use crate::core::errors::{Error, Result};
 use crate::core::prefix_type::PrefixType;
 use log::trace;
 use std::collections::BTreeSet;
@@ -96,7 +96,7 @@ impl<'a> FilterBuilder<'a> {
             .map(|region| {
                 self.aws_ip_ranges
                     .get_region(region.as_ref())
-                    .ok_or(format!("Invalid region: {}", region.as_ref()).into())
+                    .ok_or_else(|| Error::UnknownRegion(region.as_ref().to_string()))
             })
             .collect();
         self.regions = Some(regions?);
@@ -114,13 +114,9 @@ impl<'a> FilterBuilder<'a> {
             .map(|network_border_group| {
                 self.aws_ip_ranges
                     .get_network_border_group(network_border_group.as_ref())
-                    .ok_or(
-                        format!(
-                            "Invalid network border group: {}",
-                            network_border_group.as_ref()
-                        )
-                        .into(),
-                    )
+                    .ok_or_else(|| {
+                        Error::UnknownNetworkBorderGroup(network_border_group.as_ref().to_string())
+                    })
             })
             .collect();
         self.network_border_groups = Some(network_border_groups?);
@@ -138,7 +134,7 @@ impl<'a> FilterBuilder<'a> {
             .map(|service| {
                 self.aws_ip_ranges
                     .get_service(service.as_ref())
-                    .ok_or(format!("Invalid service: {}", service.as_ref()).into())
+                    .ok_or_else(|| Error::UnknownService(service.as_ref().to_string()))
             })
             .collect();
         self.services = Some(services?);

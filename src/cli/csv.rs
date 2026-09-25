@@ -1,12 +1,12 @@
-use awsipranges::{AwsIpRanges, Result};
-use std::path::PathBuf;
+use awsipranges::AwsIpRanges;
+use std::path::Path;
 use std::rc::Rc;
 
 /*-------------------------------------------------------------------------------------------------
   Save AWS IP Ranges to CSV File
 -------------------------------------------------------------------------------------------------*/
 
-pub fn save(aws_ip_ranges: &AwsIpRanges, path: &PathBuf) -> Result<()> {
+pub fn save(aws_ip_ranges: &AwsIpRanges, path: &Path) -> csv::Result<()> {
     let mut writer = csv::Writer::from_path(path)?;
 
     // Write header
