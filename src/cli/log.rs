@@ -10,18 +10,12 @@ use log::{info, warn};
   Search Results
 --------------------------------------------------------------------------------------*/
 
-pub fn search_results(
-    search_cidrs: &Option<Vec<IpNetwork>>,
-    search_results: &Option<Box<SearchResults>>,
-) {
-    if search_cidrs.is_none() || search_results.is_none() {
+pub fn search_results(search_networks: &[IpNetwork], search_results: Option<&SearchResults>) {
+    let Some(search_results) = search_results else {
         return;
-    }
+    };
 
-    let search_cidrs = search_cidrs.as_ref().unwrap();
-    let search_results = search_results.as_ref().unwrap();
-
-    let count_search_cidrs = search_cidrs.len();
+    let count_search_cidrs = search_networks.len();
     info!("Searched for {count_search_cidrs} CIDR(s) in the AWS IP Ranges");
 
     let count_search_cidrs_found = search_results.prefix_matches.len();

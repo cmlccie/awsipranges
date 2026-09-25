@@ -10,26 +10,30 @@ Use the Makefile targets; they mirror CI.
 
 - `make lint` — `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and
   rustdoc with `-D warnings`. CI fails on any warning.
-- `make tests` — runs `cargo test -- --test-threads=1`.
+- `make tests` — runs `cargo test` (tests are parallel-safe).
 - `make msrv` — `cargo check` on the `rust-version` in `Cargo.toml` (needs that
   toolchain installed via rustup).
 - `make coverage` — `cargo llvm-cov` to `target/coverage/tests.lcov` (skips doctests;
   CI runs `cargo test --doc` separately).
 - `make format` — `cargo fmt` (edition 2024 style).
 
-## Testing gotchas
+## Testing
 
-- **Tests must run single-threaded** (`--test-threads=1`). The client tests set and
-  unset process-wide `AWSIPRANGES_*` environment variables, and several tests share the
-  cache file.
-- **Most tests need network access.** Integration tests (`tests/awsipranges.rs`),
-  doctests, and the `lib_demo` example download the live `ip-ranges.json` into
-  `~/.aws/ip-ranges.json`. Unit tests in `src/core/*` use in-memory fixtures
-  (`aws_ip_ranges::tests::test_aws_ip_ranges`, `aws_ip_prefix::tests::*`).
-- Tests that depend on live data (e.g. `44.192.140.65`, network border group
-  `us-east-1-atl-1`) can break if AWS changes its published ranges. Check the live
-  data before debugging code.
-- Test output files are written to `./scratch/`, which git ignores.
+- **Tests are deterministic and offline by default.** `tests/fixtures/ip-ranges.json` is
+  a small, real subset of the AWS data (17 prefixes, IPv4 and IPv6, duplicates merged by
+  service). CLI tests run the binary with `--offline` against it (`awsipranges()` helper
+  in `tests/awsipranges.rs`) and assert exact output. Library tests use it through
+  `core::test_utils::FIXTURE_JSON`.
+- **Test HTTP behavior with `core::test_utils::serve`**, a scripted loopback server
+  (responses per connection: `HttpResponse::ok`, `::status`, `::Stall`), not the real URL.
+- Hostname tests don't depend on DNS: CLI tests use `localhost` (hosts file) and
+  `*.invalid` names (never resolve, RFC 6761); matching logic uses a fake resolver in
+  `cli/resolve.rs` unit tests.
+- Only a few smoke tests hit the network: `client::tests::test_get_ranges_from_aws`,
+  `command_live_download`, the doctests, and the `lib_demo` example.
+- Don't mutate process environment variables in tests; use
+  `ClientBuilder::from_env(lookup)`. Write temporary files with `tempfile`.
+- If you change the fixture, update the exact-output assertions that depend on it.
 
 ## Architecture
 
@@ -38,22 +42,43 @@ Use the Makefile targets; they mirror CI.
   build time (including in the Docker build context; see `.dockerignore`).
 - `src/core/` — the library (`mod core` is private; everything public is re-exported
   from `lib.rs`):
-  - `client.rs` — `Client`/`ClientBuilder`/`get_ranges()`. Blocking reqwest, a local
-    cache with a freshness window, exponential-backoff retries, and a fallback to a
-    stale cache. Configured from `AWSIPRANGES_*` env vars in `::new()` and ignores
-    them in `::default()`.
+  - `client.rs` — `Client`/`ClientBuilder`/`get_ranges()`/`CacheMode`. Blocking
+    reqwest, a local cache with a freshness window, and exponential-backoff retries
+    within a `retry_timeout` deadline (each request's timeout is the remaining budget).
+    `CacheMode::Auto` falls back to a stale cache; `Refresh`/`Offline` never fall back.
+    Configured from `AWSIPRANGES_*` env vars in `::new()` (via `from_env(lookup)`) and
+    ignores them in `::default()`. Log failures that are returned as `Err` at warn or
+    debug level, never error, because the caller reports them.
   - `aws_ip_ranges.rs` — `AwsIpRanges`: a `BTreeMap<IpNetwork, AwsIpPrefix>` plus
     region, network border group, and service sets of interned `Rc<str>`.
-    Supernet search uses a bounded `BTreeMap::range` scan.
+    Supernet search uses a bounded `BTreeMap::range` scan (`supernet_prefixes`); the
+    lower bound is clamped so broad searches like `0.0.0.0/0` can't invert the range.
   - `filter.rs` — `FilterBuilder` → `Filter`. AND across filter kinds, OR within one.
     Unknown region, service, or group values return `Err`.
   - `json.rs` / `datetime.rs` — zero-copy serde structs for the AWS JSON and its
     `%Y-%m-%d-%H-%M-%S` date format.
-  - `errors.rs` — `Error = Box<dyn std::error::Error + Send + Sync>`; no custom error
-    enum yet.
+  - `errors.rs` — `#[non_exhaustive]` `Error` enum (thiserror). Wrap third-party errors
+    as a boxed `source` rather than exposing their types in the public API.
 - `src/main.rs` + `src/cli/` — clap-derive CLI and output formatters (comfy-table,
-  CSV). The CLI normalizes case: regions and groups are lowercased except `GLOBAL`,
-  and services are uppercased. It exits with status 1 when nothing matches.
+  JSON, CSV). The CLI normalizes case: regions and groups are lowercased except
+  `GLOBAL`, and services are uppercased. Exit status follows grep: 0 = match,
+  1 = no match, 2 = error. `main` prints errors with their causes and a hint, and
+  treats a broken pipe as success. Output functions write to `&mut impl Write`; don't
+  use `println!` (it panics when stdout is closed, e.g. `| head`).
+  - `cli/target.rs` — `SearchTarget` (clap value parser): an IP/CIDR, else a validated
+    hostname, else an "invalid input" error (exit 2). Hostnames whose last label is all
+    digits are rejected so malformed IPv4 addresses (`1.2.3`) aren't looked up.
+  - `cli/resolve.rs` — resolves hostnames to A + AAAA addresses with the system
+    resolver (`ToSocketAddrs`); the resolver is a function parameter, so tests pass
+    a fake. Failed lookups are reported as "did not resolve to an IPv4 (A) or IPv6
+    (AAAA) address" (getaddrinfo can't tell NXDOMAIN from no records, so don't claim
+    either; the resolver's text is logged at warn for `-v`), other results still print,
+    and exit is 2.
+    Hostname resolution is CLI-only; the library stays DNS-free.
+  - `cli/search.rs` — `Search` (a target and its networks) and `matches()`, which maps
+    each displayed AWS prefix back to the searches (and resolved addresses) it
+    contains. Table/CSV add a Matches column and JSON a `matches` field only when
+    searching; `-o cidr`/`netmask` stay one value per line for piping.
 
 `Rc<str>` makes `AwsIpRanges` `!Send`/`!Sync`. Changing it to `Arc<str>` affects the
 public API.

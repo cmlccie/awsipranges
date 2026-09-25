@@ -1,30 +1,10 @@
 use crate::cli;
 use awsipranges::{AwsIpRanges, Filter, Result};
 use cli::utils::to_lowercase;
-use ipnetwork::IpNetwork;
-use log::error;
 
 /*-------------------------------------------------------------------------------------------------
   Core functions
 -------------------------------------------------------------------------------------------------*/
-
-/*--------------------------------------------------------------------------------------
-  Parse IP Network prefixes from CLI arguments
---------------------------------------------------------------------------------------*/
-
-pub fn parse_prefixes(args: &cli::Args) -> Option<Vec<IpNetwork>> {
-    args.search_cidrs.as_ref().map(|prefixes| {
-        prefixes
-            .iter()
-            .filter_map(|prefix| {
-                prefix.parse().ok().or_else(|| {
-                    error!("Invalid IP prefix: {:?}", prefix);
-                    None
-                })
-            })
-            .collect()
-    })
-}
 
 /*--------------------------------------------------------------------------------------
   Build AWS IP Ranges filter from CLI arguments

@@ -1,10 +1,11 @@
 use crate::core::aws_ip_ranges::AwsIpRanges;
 use crate::core::errors::{Error, Result};
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::{thread, time};
+use std::thread;
+use std::time::{Duration, Instant};
 
 /*-------------------------------------------------------------------------------------------------
   Simple Interface
@@ -39,6 +40,26 @@ pub fn get_ranges() -> Result<Box<AwsIpRanges>> {
 }
 
 /*-------------------------------------------------------------------------------------------------
+  Cache Mode
+-------------------------------------------------------------------------------------------------*/
+
+/// Controls how the [Client] uses the local cache file and the AWS IP Ranges URL.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum CacheMode {
+    /// Use the cache file when it is fresh (see [ClientBuilder::cache_time]); otherwise download
+    /// the AWS IP Ranges and update the cache, falling back to a stale cache file if the download
+    /// fails.
+    #[default]
+    Auto,
+
+    /// Always download the AWS IP Ranges and update the cache; fail if the download fails.
+    Refresh,
+
+    /// Never download; use the cache file regardless of its age and fail if it cannot be read.
+    Offline,
+}
+
+/*-------------------------------------------------------------------------------------------------
   Client Builder
 -------------------------------------------------------------------------------------------------*/
 
@@ -51,10 +72,11 @@ pub fn get_ranges() -> Result<Box<AwsIpRanges>> {
 ///     .url("https://ip-ranges.amazonaws.com/ip-ranges.json")
 ///     .cache_file("/tmp/ip-ranges.json")
 ///     .cache_time(60 * 60) // 1 hour
+///     .cache_mode(awsipranges::CacheMode::Auto)
 ///     .retry_count(4)
 ///     .retry_initial_delay(200) // 200 ms
 ///     .retry_backoff_factor(2)
-///     .retry_timeout(5000) // 5 seconds
+///     .retry_timeout(30_000) // 30 seconds
 ///     .build();
 /// ```
 ///
@@ -68,6 +90,7 @@ pub struct ClientBuilder {
     url: String,
     cache_file: PathBuf,
     cache_time: u64,
+    cache_mode: CacheMode,
     retry_count: u32,
     retry_initial_delay: u64,
     retry_backoff_factor: u64,
@@ -87,10 +110,11 @@ impl Default for ClientBuilder {
     /// assert_eq!(client.url(), "https://ip-ranges.amazonaws.com/ip-ranges.json");
     /// assert_eq!(client.cache_file(), dirs::home_dir().unwrap().join(".aws").join("ip-ranges.json"));
     /// assert_eq!(client.cache_time(), 86400);
+    /// assert_eq!(client.cache_mode(), awsipranges::CacheMode::Auto);
     /// assert_eq!(client.retry_count(), 4);
     /// assert_eq!(client.retry_initial_delay(), 200);
     /// assert_eq!(client.retry_backoff_factor(), 2);
-    /// assert_eq!(client.retry_timeout(), 5000);
+    /// assert_eq!(client.retry_timeout(), 30_000);
     /// ```
     fn default() -> Self {
         Self {
@@ -100,10 +124,11 @@ impl Default for ClientBuilder {
                 .join(".aws")
                 .join("ip-ranges.json"), // ${HOME}/.aws/ip-ranges.json
             cache_time: 24 * 60 * 60, // 24 hours
+            cache_mode: CacheMode::Auto,
             retry_count: 4,
             retry_initial_delay: 200, // 200 ms
             retry_backoff_factor: 2,
-            retry_timeout: 5000, // 5 seconds
+            retry_timeout: 30_000, // 30 seconds
         }
     }
 }
@@ -116,22 +141,35 @@ impl ClientBuilder {
     #![doc = include_str!("../../docs/lib_configuration_table.md")]
 
     pub fn new() -> Self {
+        Self::from_env(|name| env::var(name).ok())
+    }
+
+    /// Build a [ClientBuilder] from configuration values provided by `lookup` (the process
+    /// environment in [ClientBuilder::new]), using defaults for missing or invalid values.
+    fn from_env(lookup: impl Fn(&str) -> Option<String>) -> Self {
         let default = ClientBuilder::default();
 
         Self {
-            url: get_env_var("AWSIPRANGES_URL", default.url),
-            cache_file: get_env_var("AWSIPRANGES_CACHE_FILE", default.cache_file),
-            cache_time: get_env_var("AWSIPRANGES_CACHE_TIME", default.cache_time),
-            retry_count: get_env_var("AWSIPRANGES_RETRY_COUNT", default.retry_count),
-            retry_initial_delay: get_env_var(
+            url: parse_env_var(&lookup, "AWSIPRANGES_URL", default.url),
+            cache_file: parse_env_var(&lookup, "AWSIPRANGES_CACHE_FILE", default.cache_file),
+            cache_time: parse_env_var(&lookup, "AWSIPRANGES_CACHE_TIME", default.cache_time),
+            cache_mode: default.cache_mode,
+            retry_count: parse_env_var(&lookup, "AWSIPRANGES_RETRY_COUNT", default.retry_count),
+            retry_initial_delay: parse_env_var(
+                &lookup,
                 "AWSIPRANGES_RETRY_INITIAL_DELAY",
                 default.retry_initial_delay,
             ),
-            retry_backoff_factor: get_env_var(
+            retry_backoff_factor: parse_env_var(
+                &lookup,
                 "AWSIPRANGES_RETRY_BACKOFF_FACTOR",
                 default.retry_backoff_factor,
             ),
-            retry_timeout: get_env_var("AWSIPRANGES_RETRY_TIMEOUT", default.retry_timeout),
+            retry_timeout: parse_env_var(
+                &lookup,
+                "AWSIPRANGES_RETRY_TIMEOUT",
+                default.retry_timeout,
+            ),
         }
     }
 
@@ -166,7 +204,14 @@ impl ClientBuilder {
         self
     }
 
-    /// Set the number of retry attempts to retrieve the AWS IP Ranges JSON
+    /// Set how the client uses the cache file and the AWS IP Ranges URL; defaults to
+    /// [CacheMode::Auto].
+    pub fn cache_mode(&mut self, cache_mode: CacheMode) -> &mut Self {
+        self.cache_mode = cache_mode;
+        self
+    }
+
+    /// Set the maximum number of attempts to retrieve the AWS IP Ranges JSON
     /// data from the URL; defaults to `4` attempts.
     pub fn retry_count(&mut self, retry_count: u32) -> &mut Self {
         self.retry_count = retry_count;
@@ -195,9 +240,9 @@ impl ClientBuilder {
         self
     }
 
-    /// Set the maximum time (in milliseconds) to wait for the AWS IP Ranges
-    /// JSON to be retrieved from the URL; defaults to `5000` milliseconds
-    /// (5 seconds).
+    /// Set the maximum total time (in milliseconds) to spend retrieving the
+    /// AWS IP Ranges JSON from the URL, including all retry attempts and the
+    /// delays between them; defaults to `30000` milliseconds (30 seconds).
     pub fn retry_timeout(&mut self, retry_timeout: u64) -> &mut Self {
         self.retry_timeout = retry_timeout;
         self
@@ -213,6 +258,7 @@ impl ClientBuilder {
             url: self.url.clone(),
             cache_file: self.cache_file.clone(),
             cache_time: self.cache_time,
+            cache_mode: self.cache_mode,
             retry_count: self.retry_count,
             retry_initial_delay: self.retry_initial_delay,
             retry_backoff_factor: self.retry_backoff_factor,
@@ -244,6 +290,7 @@ pub struct Client {
     url: String,
     cache_file: PathBuf,
     cache_time: u64,
+    cache_mode: CacheMode,
     retry_count: u32,
     retry_initial_delay: u64,
     retry_backoff_factor: u64,
@@ -263,10 +310,11 @@ impl Default for Client {
     /// assert_eq!(client.url(), "https://ip-ranges.amazonaws.com/ip-ranges.json");
     /// assert_eq!(client.cache_file(), dirs::home_dir().unwrap().join(".aws").join("ip-ranges.json"));
     /// assert_eq!(client.cache_time(), 86400);
+    /// assert_eq!(client.cache_mode(), awsipranges::CacheMode::Auto);
     /// assert_eq!(client.retry_count(), 4);
     /// assert_eq!(client.retry_initial_delay(), 200);
     /// assert_eq!(client.retry_backoff_factor(), 2);
-    /// assert_eq!(client.retry_timeout(), 5000);
+    /// assert_eq!(client.retry_timeout(), 30_000);
     /// ```
     fn default() -> Self {
         ClientBuilder::default().build()
@@ -318,7 +366,18 @@ impl Client {
         self.cache_time
     }
 
-    /// Get the number of retry attempts to retrieve the AWS IP Ranges JSON
+    /// Get how the client uses the cache file and the AWS IP Ranges URL.
+    /// Defaults to [CacheMode::Auto].
+    ///
+    /// ```
+    /// let client = awsipranges::Client::default();
+    /// assert_eq!(client.cache_mode(), awsipranges::CacheMode::Auto);
+    /// ```
+    pub fn cache_mode(&self) -> CacheMode {
+        self.cache_mode
+    }
+
+    /// Get the maximum number of attempts to retrieve the AWS IP Ranges JSON
     /// data from the URL. Defaults to 4 attempts.
     ///
     /// ```
@@ -353,13 +412,13 @@ impl Client {
         self.retry_backoff_factor
     }
 
-    /// Get the maximum time (in milliseconds) to wait for the AWS IP Ranges
-    /// JSON to be retrieved from the URL. Defaults to 5000 milliseconds
-    /// (5 seconds).
+    /// Get the maximum total time (in milliseconds) to spend retrieving the
+    /// AWS IP Ranges JSON from the URL, including all retry attempts.
+    /// Defaults to 30000 milliseconds (30 seconds).
     ///
     /// ```
     /// let client = awsipranges::Client::default();
-    /// assert_eq!(client.retry_timeout(), 5000);
+    /// assert_eq!(client.retry_timeout(), 30_000);
     /// ```
     pub fn retry_timeout(&self) -> u64 {
         self.retry_timeout
@@ -369,10 +428,9 @@ impl Client {
       Get Ranges
     -------------------------------------------------------------------------*/
 
-    /// Retrieves, parses, and returns a boxed [AwsIpRanges] object. Uses
-    /// locally cached JSON, when available and fresh. Requests the AWS IP
-    /// Ranges JSON from the URL when the local cache is stale or
-    /// unavailable.
+    /// Retrieves, parses, and returns a boxed [AwsIpRanges] object. Uses the
+    /// cache file and the AWS IP Ranges URL as configured by the client's
+    /// [CacheMode].
     pub fn get_ranges(&self) -> Result<Box<AwsIpRanges>> {
         let json = self.get_json()?;
         AwsIpRanges::from_json(&json)
@@ -384,97 +442,101 @@ impl Client {
 
     /// Get the AWS IP Ranges JSON from the cache file or URL.
     fn get_json(&self) -> Result<String> {
-        info!("Cache time {} seconds", self.cache_time);
+        info!("Cache mode: {:?}", self.cache_mode);
         info!("Cache file path: {:?}", self.cache_file);
 
-        // Check if cache file exists
-        let cache_exists = fs::metadata(&self.cache_file).is_ok();
-        if cache_exists {
-            info!("Cache file exists");
-        } else {
-            info!("Cache file not found");
-        };
-
-        // Check if cache file is fresh
-        let cache_is_fresh = cache_exists
-            && fs::metadata(&self.cache_file)?
-                .modified()?
-                .elapsed()?
-                .as_secs()
-                <= self.cache_time;
-        if cache_is_fresh {
-            info!("Cache file is fresh");
-        } else {
-            info!("Cache file is stale; refresh cache");
-        };
-
-        // Fresh cached JSON
-        if cache_is_fresh {
-            let fresh_cached_json = self.get_json_from_file();
-            if fresh_cached_json.is_ok() {
-                return fresh_cached_json;
-            }
-        };
-
-        // Fresh URL JSON
-        let fresh_url_json = self.get_json_from_url();
-        if let Ok(fresh_url_json) = fresh_url_json {
-            let _ = self.cache_json_to_file(&fresh_url_json);
-            return Ok(fresh_url_json);
-        };
-        let url_result = fresh_url_json;
-
-        // Stale cached JSON
-        if cache_exists && !cache_is_fresh {
-            let stale_cache_json = self.get_json_from_file();
-            if stale_cache_json.is_ok() {
-                return stale_cache_json;
-            }
-        };
-
-        // Return result (Err) retrieving AWS IP Ranges JSON from URL
-        url_result
+        match self.cache_mode {
+            CacheMode::Offline => self.get_json_from_file(),
+            CacheMode::Refresh => self.get_json_from_url_and_cache(),
+            CacheMode::Auto => self
+                .fresh_cache_json()
+                .map_or_else(|| self.get_json_from_url_or_stale_cache(), Ok),
+        }
     }
 
-    /// Get the AWS IP Ranges JSON from the URL.
+    /// Get the cached JSON when the cache file is fresh and readable.
+    fn fresh_cache_json(&self) -> Option<String> {
+        info!("Cache time {} seconds", self.cache_time);
+
+        // A modified time in the future (clock skew) is treated as fresh
+        let cache_is_fresh = fs::metadata(&self.cache_file)
+            .and_then(|metadata| metadata.modified())
+            .map(|modified| modified.elapsed().unwrap_or_default().as_secs() <= self.cache_time)
+            .unwrap_or(false);
+
+        if cache_is_fresh {
+            info!("Cache file is fresh");
+            self.get_json_from_file().ok()
+        } else {
+            info!("Cache file is stale or missing; refresh cache");
+            None
+        }
+    }
+
+    /// Get the JSON from the URL, falling back to a stale cache file when the download fails.
+    fn get_json_from_url_or_stale_cache(&self) -> Result<String> {
+        self.get_json_from_url_and_cache().or_else(|url_error| {
+            self.get_json_from_file()
+                .inspect(|_| warn!("Using stale cached AWS IP Ranges: {url_error}"))
+                .map_err(|_| url_error)
+        })
+    }
+
+    /// Get the JSON from the URL and write it to the cache file.
+    fn get_json_from_url_and_cache(&self) -> Result<String> {
+        let json = self.get_json_from_url()?;
+        // A cache write failure is logged and does not fail the lookup
+        let _ = self.cache_json_to_file(&json);
+        Ok(json)
+    }
+
+    /// Get the AWS IP Ranges JSON from the URL, retrying with exponential backoff until
+    /// `retry_count` attempts have been made or `retry_timeout` has elapsed.
     fn get_json_from_url(&self) -> Result<String> {
-        let start_time = time::Instant::now();
-        let max_elapsed_time = time::Duration::from_millis(self.retry_timeout);
+        let deadline = Instant::now() + Duration::from_millis(self.retry_timeout);
+        let http_error = |source: Box<dyn std::error::Error + Send + Sync>| Error::Http {
+            url: self.url.clone(),
+            source,
+        };
+
+        let http_client = reqwest::blocking::Client::builder()
+            .connect_timeout(Duration::from_millis(self.retry_timeout.min(10_000)))
+            .build()
+            .map_err(|error| http_error(error.into()))?;
 
         let mut attempt: u32 = 0;
         loop {
             info!(
-                "Get AWS IP Ranges from URL; Attempt {}: GET {}",
-                attempt, self.url
+                "Get AWS IP Ranges from URL; Attempt {attempt}: GET {}",
+                self.url
             );
-            let json: Result<String> = reqwest::blocking::get(&self.url)
-                .map_err(Error::from)
-                .and_then(|response| response.text().map_err(Error::from))
+            let remaining = deadline.saturating_duration_since(Instant::now());
+
+            let json = http_client
+                .get(&self.url)
+                .timeout(remaining)
+                .send()
+                .and_then(|response| response.error_for_status())
+                .and_then(|response| response.text())
+                .map_err(|error| http_error(error.into()))
                 .and_then(validate_json);
 
             match json {
                 Ok(json) => {
-                    info!("Get AWS IP Ranges from URL; Attempt {}: Ok", attempt);
+                    info!("Get AWS IP Ranges from URL; Attempt {attempt}: Ok");
                     break Ok(json);
                 }
                 Err(error) => {
-                    log::error!(
-                        "Get AWS IP Ranges from URL; Attempt {}: FAILED: {}",
-                        attempt,
-                        error
-                    );
+                    warn!("Get AWS IP Ranges from URL; Attempt {attempt}: FAILED: {error}");
 
-                    let delay = time::Duration::from_millis(
-                        self.retry_initial_delay * (self.retry_backoff_factor.pow(attempt)),
+                    let delay = Duration::from_millis(
+                        self.retry_initial_delay
+                            .saturating_mul(self.retry_backoff_factor.saturating_pow(attempt)),
                     );
-
                     attempt += 1;
 
-                    if (start_time.elapsed() + delay < max_elapsed_time)
-                        && (attempt < self.retry_count)
-                    {
+                    if attempt < self.retry_count && Instant::now() + delay < deadline {
                         thread::sleep(delay);
-                        continue;
                     } else {
                         break Err(error);
                     }
@@ -485,30 +547,34 @@ impl Client {
 
     /// Write the AWS IP Ranges JSON to the cache file.
     fn cache_json_to_file(&self, json: &str) -> Result<()> {
+        let cache_write_error = |source| Error::CacheWrite {
+            path: self.cache_file.clone(),
+            source,
+        };
+
         // Ensure parent directories exist
-        self.cache_file.parent().map(fs::create_dir_all);
+        if let Some(parent) = self.cache_file.parent() {
+            fs::create_dir_all(parent).map_err(cache_write_error)?;
+        }
 
         fs::write(&self.cache_file, json)
+            .map_err(cache_write_error)
             .inspect(|_| {
                 info!(
                     "Successfully cached AWS IP Ranges to: {:?}",
                     self.cache_file
                 )
             })
-            .map_err(Error::from)
-            .inspect_err(|error| {
-                log::error!(
-                    "Failed to cache AWS IP Ranges to `{:?}`: {}",
-                    self.cache_file,
-                    error
-                )
-            })
+            .inspect_err(|error| warn!("{error}"))
     }
 
     /// Get the AWS IP Ranges JSON from the cache file.
     fn get_json_from_file(&self) -> Result<String> {
         fs::read_to_string(&self.cache_file)
-            .map_err(Error::from)
+            .map_err(|source| Error::CacheRead {
+                path: self.cache_file.clone(),
+                source,
+            })
             .and_then(validate_json)
             .inspect(|_| {
                 info!(
@@ -516,13 +582,7 @@ impl Client {
                     self.cache_file
                 )
             })
-            .inspect_err(|error| {
-                log::error!(
-                    "Failed to read AWS IP Ranges JSON from `{:?}`: {}",
-                    self.cache_file,
-                    error
-                )
-            })
+            .inspect_err(|error| debug!("{error}"))
     }
 }
 
@@ -530,15 +590,18 @@ impl Client {
   Helper Functions
 -------------------------------------------------------------------------------------------------*/
 
-/// Get and parse an environment variable value or return a default value.
-fn get_env_var<T: std::str::FromStr>(env_var: &str, default: T) -> T {
-    env::var(env_var)
-        .ok()
+/// Parse an environment variable value or return a default value.
+fn parse_env_var<T: std::str::FromStr>(
+    lookup: impl Fn(&str) -> Option<String>,
+    name: &str,
+    default: T,
+) -> T {
+    lookup(name)
         .and_then(|value| {
             value
                 .parse::<T>()
-                .inspect(|_| info!("Using {}: {}", env_var, value))
-                .inspect_err(|_| warn!("Invalid {}: {}", env_var, value))
+                .inspect(|_| info!("Using {name}: {value}"))
+                .inspect_err(|_| warn!("Invalid {name}: {value}"))
                 .ok()
         })
         .unwrap_or(default)
@@ -546,9 +609,8 @@ fn get_env_var<T: std::str::FromStr>(env_var: &str, default: T) -> T {
 
 /// Validate a string contains parsable JSON.
 fn validate_json(json: String) -> Result<String> {
-    serde_json::from_str::<serde::de::IgnoredAny>(&json)
-        .and(Ok(json))
-        .or(Err("Invalid JSON".into()))
+    serde_json::from_str::<serde::de::IgnoredAny>(&json)?;
+    Ok(json)
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -559,88 +621,66 @@ fn validate_json(json: String) -> Result<String> {
 mod tests {
     use super::*;
     use crate::core::errors::log_error;
-    use crate::core::json;
-    use env::VarError;
+    use crate::core::test_utils::{FIXTURE_JSON, HttpResponse, serve};
+    use std::collections::HashMap;
     use test_log::test;
 
-    /*-------------------------------------------------------------------------
-      Test Simple Interface
-    -------------------------------------------------------------------------*/
+    /// Build a client that talks to `url` and caches to a fresh temporary directory.
+    fn test_client(url: &str, cache_dir: &tempfile::TempDir) -> ClientBuilder {
+        let mut builder = ClientBuilder::default();
+        builder
+            .url(url)
+            .cache_file(cache_dir.path().join("ip-ranges.json"))
+            .retry_initial_delay(10)
+            .retry_timeout(5_000);
+        builder
+    }
 
-    /// Test the library's simple interface function.
-    /// ENV_VAR: AWSIPRANGES_CACHE_FILE
-    /// ENV_VAR: AWSIPRANGES_CACHE_TIME
-    /// ENV_VAR: AWSIPRANGES_RETRY_COUNT
-    /// ENV_VAR: AWSIPRANGES_RETRY_INITIAL_DELAY
-    /// ENV_VAR: AWSIPRANGES_RETRY_BACKOFF_FACTOR
-    /// ENV_VAR: AWSIPRANGES_RETRY_TIMEOUT
-    /// FILE: {HOME}/.aws/ip-ranges.json
-    #[test]
-    fn test_get_ranges_function() {
-        let aws_ip_ranges = get_ranges().inspect_err(log_error);
-        assert!(aws_ip_ranges.is_ok());
+    /// Write the fixture JSON to `path` with a modified time two days in the past.
+    fn write_stale_cache(path: &Path) {
+        fs::write(path, FIXTURE_JSON).unwrap();
+        let two_days_ago = std::time::SystemTime::now() - Duration::from_secs(2 * 24 * 60 * 60);
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .and_then(|file| file.set_modified(two_days_ago))
+            .unwrap();
     }
 
     /*-------------------------------------------------------------------------
       Test Environment Variable Configuration
     -------------------------------------------------------------------------*/
 
-    /// ENV_VAR: AWSIPRANGES_CACHE_FILE
-    /// ENV_VAR: AWSIPRANGES_CACHE_TIME
-    /// ENV_VAR: AWSIPRANGES_RETRY_COUNT
-    /// ENV_VAR: AWSIPRANGES_RETRY_INITIAL_DELAY
-    /// ENV_VAR: AWSIPRANGES_RETRY_BACKOFF_FACTOR
-    /// ENV_VAR: AWSIPRANGES_RETRY_TIMEOUT
     #[test]
     fn test_environment_variable_configuration() {
-        let test_env_vars = [
+        let env_vars: HashMap<&str, &str> = HashMap::from([
             ("AWSIPRANGES_URL", "https://my-ip-ranges.com/ip-ranges.json"),
-            (
-                "AWSIPRANGES_CACHE_FILE",
-                "./scratch/test_environment_variable_configuration_cache_file.json",
-            ),
+            ("AWSIPRANGES_CACHE_FILE", "/tmp/ip-ranges-cache.json"),
             ("AWSIPRANGES_CACHE_TIME", "60"),
             ("AWSIPRANGES_RETRY_COUNT", "2"),
             ("AWSIPRANGES_RETRY_INITIAL_DELAY", "100"),
             ("AWSIPRANGES_RETRY_BACKOFF_FACTOR", "3"),
             ("AWSIPRANGES_RETRY_TIMEOUT", "1000"),
-        ];
+        ]);
 
-        let default = Client::default();
+        // No environment variables: defaults
+        let default = ClientBuilder::default().build();
+        let unset = ClientBuilder::from_env(|_| None).build();
+        assert_eq!(unset.url(), default.url());
+        assert_eq!(unset.cache_file(), default.cache_file());
+        assert_eq!(unset.cache_time(), default.cache_time());
+        assert_eq!(unset.retry_count(), default.retry_count());
+        assert_eq!(unset.retry_initial_delay(), default.retry_initial_delay());
+        assert_eq!(unset.retry_backoff_factor(), default.retry_backoff_factor());
+        assert_eq!(unset.retry_timeout(), default.retry_timeout());
 
-        // Store environment variable values
-        let stored_env_vars: Vec<(String, std::result::Result<std::string::String, VarError>)> =
-            test_env_vars
-                .iter()
-                .map(|(env_var, _)| (env_var.to_string(), env::var(env_var)))
-                .collect();
-
-        // Unset all environment variables
-        test_env_vars.iter().for_each(|(env_var, _)| unsafe {
-            std::env::remove_var(env_var);
-        });
-
-        // Test default cases
-        let new = Client::new();
-        assert_eq!(new.url(), default.url());
-        assert_eq!(new.cache_file(), default.cache_file());
-        assert_eq!(new.cache_time(), default.cache_time());
-        assert_eq!(new.retry_count(), default.retry_count());
-        assert_eq!(new.retry_initial_delay(), default.retry_initial_delay());
-        assert_eq!(new.retry_backoff_factor(), default.retry_backoff_factor());
-        assert_eq!(new.retry_timeout(), default.retry_timeout());
-
-        // Set all environment variables
-        for (env_var, value) in test_env_vars.iter() {
-            unsafe { std::env::set_var(env_var, value) };
-        }
-
-        // Test environment variable configuration
-        let env_config = Client::new();
+        // All environment variables set
+        let env_config =
+            ClientBuilder::from_env(|name| env_vars.get(name).map(|v| v.to_string())).build();
         assert_eq!(env_config.url(), "https://my-ip-ranges.com/ip-ranges.json");
         assert_eq!(
             env_config.cache_file(),
-            PathBuf::from("./scratch/test_environment_variable_configuration_cache_file.json")
+            PathBuf::from("/tmp/ip-ranges-cache.json")
         );
         assert_eq!(env_config.cache_time(), 60);
         assert_eq!(env_config.retry_count(), 2);
@@ -648,14 +688,10 @@ mod tests {
         assert_eq!(env_config.retry_backoff_factor(), 3);
         assert_eq!(env_config.retry_timeout(), 1000);
 
-        // Reset environment variables
-        for (env_var, value) in stored_env_vars {
-            match value {
-                Ok(value) => unsafe { std::env::set_var(env_var, value) },
-                Err(VarError::NotPresent) => unsafe { std::env::remove_var(env_var) },
-                Err(VarError::NotUnicode(value)) => unsafe { std::env::set_var(env_var, value) },
-            }
-        }
+        // Invalid values fall back to defaults
+        let invalid = ClientBuilder::from_env(|_| Some("not-a-number".to_string())).build();
+        assert_eq!(invalid.cache_time(), default.cache_time());
+        assert_eq!(invalid.retry_count(), default.retry_count());
     }
 
     /*-------------------------------------------------------------------------
@@ -666,8 +702,9 @@ mod tests {
     fn test_getter_and_setter_methods() {
         let client = ClientBuilder::default()
             .url("https://my-ip-ranges.com/ip-ranges.json")
-            .cache_file("./scratch/test_getter_and_setter_methods_cache_file.json")
+            .cache_file("/tmp/ip-ranges-cache.json")
             .cache_time(60)
+            .cache_mode(CacheMode::Offline)
             .retry_count(2)
             .retry_initial_delay(100)
             .retry_backoff_factor(3)
@@ -677,9 +714,10 @@ mod tests {
         assert_eq!(client.url(), "https://my-ip-ranges.com/ip-ranges.json");
         assert_eq!(
             client.cache_file(),
-            PathBuf::from("./scratch/test_getter_and_setter_methods_cache_file.json")
+            PathBuf::from("/tmp/ip-ranges-cache.json")
         );
         assert_eq!(client.cache_time(), 60);
+        assert_eq!(client.cache_mode(), CacheMode::Offline);
         assert_eq!(client.retry_count(), 2);
         assert_eq!(client.retry_initial_delay(), 100);
         assert_eq!(client.retry_backoff_factor(), 3);
@@ -687,74 +725,145 @@ mod tests {
     }
 
     /*-------------------------------------------------------------------------
-      Test JSON Retrieval Methods
+      Test Retrieval from the URL
     -------------------------------------------------------------------------*/
 
-    /// Test getting the JSON from the URL.
-    /// URL: https://ip-ranges.amazonaws.com/ip-ranges.json
     #[test]
-    fn test_get_json_from_url() {
-        let client = ClientBuilder::default().build();
-        let json = client.get_json_from_url().inspect_err(log_error);
-        assert!(json.is_ok());
+    fn test_get_ranges_from_url_updates_cache() {
+        let url = serve(vec![HttpResponse::ok(FIXTURE_JSON)]);
+        let cache_dir = tempfile::tempdir().unwrap();
+        let client = test_client(&url, &cache_dir).build();
+
+        let aws_ip_ranges = client.get_ranges().inspect_err(log_error).unwrap();
+        assert!(!aws_ip_ranges.prefixes().is_empty());
+        assert_eq!(
+            fs::read_to_string(client.cache_file()).unwrap(),
+            FIXTURE_JSON
+        );
     }
 
-    /// Test caching the JSON to a file.
-    /// FILE: ./scratch/test_cache_json_to_file.json
     #[test]
-    fn test_cache_json_to_file() {
-        let test_cache_file: PathBuf = [".", "scratch", "test_cache_json_to_file.json"]
-            .iter()
-            .collect();
-        let client: Client = ClientBuilder::default()
-            .cache_file(&test_cache_file)
-            .build();
-        let json = client.get_json_from_url().unwrap();
-        let result = client.cache_json_to_file(&json).inspect_err(log_error);
-        assert!(result.is_ok());
+    fn test_retry_after_http_error_status() {
+        let url = serve(vec![
+            HttpResponse::status(503),
+            HttpResponse::ok(FIXTURE_JSON),
+        ]);
+        let cache_dir = tempfile::tempdir().unwrap();
+        let client = test_client(&url, &cache_dir).build();
+
+        assert!(client.get_json_from_url().inspect_err(log_error).is_ok());
     }
 
-    /// Test getting the JSON from a file.
-    /// FILE: ./scratch/test_get_json_from_file.json
     #[test]
-    fn test_get_json_from_file() {
-        // Write JSON to test cache file
-        let test_cache_file: PathBuf = [".", "scratch", "test_get_json_from_file.json"]
-            .iter()
-            .collect();
-        let client: Client = ClientBuilder::default()
-            .cache_file(&test_cache_file)
-            .build();
-        let json_from_url = client.get_json_from_url().unwrap();
-        client.cache_json_to_file(&json_from_url).unwrap();
+    fn test_http_error_status_is_an_http_error() {
+        let url = serve(vec![HttpResponse::status(404)]);
+        let cache_dir = tempfile::tempdir().unwrap();
+        let client = test_client(&url, &cache_dir).retry_count(1).build();
 
-        // Get JSON from test cache file
-        let json_from_file = client.get_json_from_file().inspect_err(log_error);
-        assert!(json_from_file.is_ok());
+        let error = client.get_json_from_url().unwrap_err();
+        assert!(matches!(error, Error::Http { .. }), "{error:?}");
+    }
+
+    #[test]
+    fn test_invalid_json_is_a_json_error() {
+        let url = serve(vec![HttpResponse::ok("<html>Not JSON</html>")]);
+        let cache_dir = tempfile::tempdir().unwrap();
+        let client = test_client(&url, &cache_dir).retry_count(1).build();
+
+        let error = client.get_json_from_url().unwrap_err();
+        assert!(matches!(error, Error::Json(_)), "{error:?}");
+    }
+
+    #[test]
+    fn test_retry_timeout_bounds_a_stalled_request() {
+        let url = serve(vec![HttpResponse::Stall]);
+        let cache_dir = tempfile::tempdir().unwrap();
+        let client = test_client(&url, &cache_dir).retry_timeout(500).build();
+
+        let start = Instant::now();
+        let error = client.get_json_from_url().unwrap_err();
+        assert!(matches!(error, Error::Http { .. }), "{error:?}");
+        assert!(
+            start.elapsed() < Duration::from_secs(3),
+            "{:?}",
+            start.elapsed()
+        );
     }
 
     /*-------------------------------------------------------------------------
-      Test JSON Parsing
+      Test Cache Modes
     -------------------------------------------------------------------------*/
 
-    /// Test parsing the JSON.
-    /// URL: https://ip-ranges.amazonaws.com/ip-ranges.json
     #[test]
-    fn test_parse_json() {
-        let client = Client::default();
-        let json = client.get_json_from_url().unwrap();
-        let json_ip_ranges = json::parse(&json).inspect_err(log_error);
-        assert!(json_ip_ranges.is_ok());
+    fn test_auto_mode_uses_fresh_cache() {
+        let cache_dir = tempfile::tempdir().unwrap();
+        // The URL is never contacted when the cache is fresh
+        let client = test_client("http://127.0.0.1:9", &cache_dir).build();
+        fs::write(client.cache_file(), FIXTURE_JSON).unwrap();
+
+        assert_eq!(client.get_json().unwrap(), FIXTURE_JSON);
     }
 
-    /// Test serializing the JSON.
+    #[test]
+    fn test_auto_mode_falls_back_to_stale_cache() {
+        let url = serve(vec![HttpResponse::status(503)]);
+        let cache_dir = tempfile::tempdir().unwrap();
+        let client = test_client(&url, &cache_dir).retry_count(1).build();
+        write_stale_cache(client.cache_file());
+
+        assert_eq!(client.get_json().unwrap(), FIXTURE_JSON);
+    }
+
+    #[test]
+    fn test_refresh_mode_ignores_fresh_cache() {
+        let url = serve(vec![HttpResponse::status(503)]);
+        let cache_dir = tempfile::tempdir().unwrap();
+        let client = test_client(&url, &cache_dir)
+            .cache_mode(CacheMode::Refresh)
+            .retry_count(1)
+            .build();
+        fs::write(client.cache_file(), FIXTURE_JSON).unwrap();
+
+        let error = client.get_json().unwrap_err();
+        assert!(matches!(error, Error::Http { .. }), "{error:?}");
+    }
+
+    #[test]
+    fn test_offline_mode_uses_stale_cache() {
+        let cache_dir = tempfile::tempdir().unwrap();
+        let client = test_client("http://127.0.0.1:9", &cache_dir)
+            .cache_mode(CacheMode::Offline)
+            .build();
+        write_stale_cache(client.cache_file());
+
+        assert_eq!(client.get_json().unwrap(), FIXTURE_JSON);
+    }
+
+    #[test]
+    fn test_offline_mode_without_cache_is_a_cache_error() {
+        let cache_dir = tempfile::tempdir().unwrap();
+        let client = test_client("http://127.0.0.1:9", &cache_dir)
+            .cache_mode(CacheMode::Offline)
+            .build();
+
+        let error = client.get_json().unwrap_err();
+        assert!(matches!(error, Error::CacheRead { .. }), "{error:?}");
+    }
+
+    /*-------------------------------------------------------------------------
+      Test Live Retrieval (network)
+    -------------------------------------------------------------------------*/
+
+    /// Smoke test against the real AWS IP Ranges URL.
     /// URL: https://ip-ranges.amazonaws.com/ip-ranges.json
     #[test]
-    fn test_serialize_json_ip_ranges() {
-        let client = Client::default();
-        let json_from_url = client.get_json_from_url().unwrap();
-        let json_ip_ranges = json::parse(&json_from_url).unwrap();
-        let serialized_json = serde_json::to_string(&json_ip_ranges);
-        assert!(serialized_json.is_ok());
+    fn test_get_ranges_from_aws() {
+        let cache_dir = tempfile::tempdir().unwrap();
+        let client = ClientBuilder::default()
+            .cache_file(cache_dir.path().join("ip-ranges.json"))
+            .build();
+
+        let aws_ip_ranges = client.get_ranges().inspect_err(log_error);
+        assert!(aws_ip_ranges.is_ok());
     }
 }

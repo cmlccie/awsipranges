@@ -20,19 +20,18 @@ lint:
 	cargo clippy --all-targets -- -D warnings
 	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
-# Tests share process-wide env vars and a cache file; run them single-threaded.
 tests:
-	RUST_LOG=debug RUST_BACKTRACE=1 cargo test -- --test-threads=1
+	RUST_LOG=debug RUST_BACKTRACE=1 cargo test
 
 msrv:
 	cargo +$$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml) check --all-targets --locked
 
 coverage:
 	@mkdir -p target/coverage
-	cargo llvm-cov --lcov --output-path target/coverage/tests.lcov -- --test-threads=1
+	cargo llvm-cov --lcov --output-path target/coverage/tests.lcov
 
 coverage_report:
-	cargo llvm-cov --html --open -- --test-threads=1
+	cargo llvm-cov --html --open
 
 
 build:

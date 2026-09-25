@@ -67,7 +67,7 @@ mod core;
 
 pub use crate::core::aws_ip_prefix::AwsIpPrefix;
 pub use crate::core::aws_ip_ranges::AwsIpRanges;
-pub use crate::core::client::{Client, ClientBuilder, get_ranges};
+pub use crate::core::client::{CacheMode, Client, ClientBuilder, get_ranges};
 pub use crate::core::errors::{Error, Result};
 pub use crate::core::filter::{Filter, FilterBuilder};
 pub use crate::core::search_results::SearchResults;

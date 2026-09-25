@@ -12,3 +12,6 @@ pub mod json;
 pub mod prefix_type;
 pub mod search_results;
 pub mod utils;
+
+#[cfg(test)]
+pub(crate) mod test_utils;

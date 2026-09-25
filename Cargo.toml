@@ -20,6 +20,7 @@ eula = false
 chrono = { version = "0.4.45", features = ["serde"] }
 clap = { version = "4.6.1", features = ["derive", "wrap_help"] }
 clap-verbosity-flag = "3.0.4"
+clap_complete = "4.6.11"
 comfy-table = "8.0.0"
 csv = "1.4.0"
 dirs = "7.0.0"
@@ -29,11 +30,13 @@ reqwest = { version = "0.13.5", features = ["blocking"] }
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 serde_json = "1.0.150"
 stderrlog = "0.6.0"
+thiserror = "2.0.21"
 
 [dev-dependencies]
 assert_cmd = "2.2.2"
 escargot = "0.5.15"
 test-log = "0.2.21"
+tempfile = "3.27.0"
 
 
 # --------------------------------------------------------------------------------------
@@ -57,9 +60,12 @@ tap = "cmlccie/homebrew-tap"
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = [
   "aarch64-apple-darwin",
+  "aarch64-unknown-linux-gnu",
+  "aarch64-unknown-linux-musl",
   "x86_64-apple-darwin",
   "x86_64-pc-windows-msvc",
   "x86_64-unknown-linux-gnu",
+  "x86_64-unknown-linux-musl",
 ]
 # Path that installers should place binaries in
 install-path = "CARGO_HOME"

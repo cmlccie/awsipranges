@@ -1,3 +1,4 @@
+use crate::cli::target::SearchTarget;
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -42,17 +43,32 @@ pub struct Args {
     #[arg(long = "csv")]
     pub csv_file: Option<PathBuf>,
 
+    /// Download the AWS IP Ranges even if the cache is fresh
+    #[arg(long, conflicts_with = "offline")]
+    pub refresh: bool,
+
+    /// Use only the cached AWS IP Ranges; never download
+    #[arg(long)]
+    pub offline: bool,
+
+    /// Print a shell completion script and exit
+    #[arg(long, value_name = "SHELL", exclusive = true)]
+    pub completions: Option<clap_complete::Shell>,
+
     /// Logging verbosity
     #[command(flatten)]
     pub verbose: clap_verbosity_flag::Verbosity,
 
-    /// Find AWS IP Prefixes containing these IP addresses or networks
-    pub search_cidrs: Option<Vec<String>>,
+    /// Find AWS IP Prefixes containing these IP addresses, networks (CIDRs), or hostnames
+    /// (resolved to their IPv4 and IPv6 addresses)
+    #[arg(value_name = "IP|CIDR|HOSTNAME")]
+    pub search: Vec<SearchTarget>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum OutputFormat {
     Table,
+    Json,
     Cidr,
     Netmask,
     Regions,
