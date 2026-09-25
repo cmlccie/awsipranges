@@ -70,7 +70,10 @@ Use the Makefile targets; they mirror CI.
     digits are rejected so malformed IPv4 addresses (`1.2.3`) aren't looked up.
   - `cli/resolve.rs` — resolves hostnames to A + AAAA addresses with the system
     resolver (`ToSocketAddrs`); the resolver is a function parameter, so tests pass
-    a fake. Failed lookups are reported, other results still print, and exit is 2.
+    a fake. Failed lookups are reported as "did not resolve to an IPv4 (A) or IPv6
+    (AAAA) address" (getaddrinfo can't tell NXDOMAIN from no records, so don't claim
+    either; the resolver's text is logged at warn for `-v`), other results still print,
+    and exit is 2.
     Hostname resolution is CLI-only; the library stays DNS-free.
   - `cli/search.rs` — `Search` (a target and its networks) and `matches()`, which maps
     each displayed AWS prefix back to the searches (and resolved addresses) it

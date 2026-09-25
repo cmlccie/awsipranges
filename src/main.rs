@@ -181,6 +181,9 @@ fn report(error: &(dyn Error + 'static)) {
         Some(awsipranges::Error::UnknownService(_)) => {
             Some("list the valid services with `awsipranges --output services`")
         }
+        None if error.is::<cli::resolve::ResolveError>() => {
+            Some("check the hostname, or run with `-v` to see the resolver's response")
+        }
         // Only offline mode surfaces cache read errors
         Some(awsipranges::Error::CacheRead { .. }) => {
             Some("run without `--offline` to download the AWS IP Ranges")

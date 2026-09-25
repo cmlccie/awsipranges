@@ -171,7 +171,7 @@ awsipranges --output json ip-ranges.amazonaws.com 44.192.140.65 \
 Keep in mind:
 
 - DNS answers can vary by location and over time (CDNs, load balancers, geo-DNS), so results reflect what your resolver returns at that moment.
-- If a hostname can't be resolved, `awsipranges` reports the error, still shows results for the other arguments, and exits with status `2`.
+- If a hostname doesn't resolve to any IPv4 (A) or IPv6 (AAAA) address (it doesn't exist, has only other record types, or DNS is unreachable), `awsipranges` says so, still shows results for the other arguments, and exits with status `2`. Run with `-v` to see the resolver's response.
 - `--offline` applies to the AWS IP Ranges data only; resolving hostnames still uses DNS.
 - Pass a hostname, not a URL (`example.com`, not `https://example.com/path`). Internationalized names must use their ASCII (`xn--`) form.
 

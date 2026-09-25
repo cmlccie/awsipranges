@@ -1,6 +1,7 @@
 use crate::cli::search::Search;
 use crate::cli::target::SearchTarget;
 use ipnetwork::IpNetwork;
+use log::warn;
 use std::collections::BTreeSet;
 use std::io;
 use std::net::{IpAddr, ToSocketAddrs};
@@ -9,13 +10,16 @@ use std::net::{IpAddr, ToSocketAddrs};
   Hostname Resolution
 -------------------------------------------------------------------------------------------------*/
 
-/// A hostname could not be resolved to any IP addresses.
+/// A hostname did not resolve to any IP addresses.
+///
+/// The system resolver reports a nonexistent name and a name without A or AAAA records the
+/// same way on some platforms, so the message states only what is certain. The resolver's
+/// response is logged (visible with `-v`) rather than shown as the cause.
 #[derive(Debug, thiserror::Error)]
-#[error("failed to resolve {hostname}")]
+#[error("{hostname} did not resolve to an IPv4 (A) or IPv6 (AAAA) address")]
 pub struct ResolveError {
     pub hostname: String,
-    #[source]
-    pub source: io::Error,
+    pub detail: io::Error,
 }
 
 /// The searches to perform and the hostnames that could not be resolved.
@@ -60,9 +64,12 @@ pub fn resolve_targets(
                 SearchTarget::Hostname(hostname) => resolve(hostname)
                     .and_then(non_empty)
                     .map(|addresses| addresses.into_iter().map(IpNetwork::from).collect())
-                    .map_err(|source| ResolveError {
-                        hostname: hostname.clone(),
-                        source,
+                    .map_err(|detail| {
+                        warn!("Resolver response for {hostname}: {detail}");
+                        ResolveError {
+                            hostname: hostname.clone(),
+                            detail,
+                        }
                     }),
             };
             match networks {

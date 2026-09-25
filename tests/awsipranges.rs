@@ -283,9 +283,13 @@ fn command_search_unresolvable_hostname_exits_2() {
     assert_eq!(code, 2);
     assert!(stdout.is_empty());
     assert!(
-        stderr.contains("error: failed to resolve awsipranges-test.invalid"),
+        stderr.contains(
+            "error: awsipranges-test.invalid did not resolve to an IPv4 (A) or IPv6 (AAAA) address"
+        ),
         "{stderr}"
     );
+    assert!(stderr.contains("hint: check the hostname"), "{stderr}");
+    assert!(!stderr.contains("caused by"), "{stderr}");
 }
 
 #[test]
@@ -298,7 +302,7 @@ fn command_search_partial_resolution_failure_shows_results_and_exits_2() {
     ]));
     assert_eq!(code, 2);
     assert_eq!(lines(&stdout), ["44.192.0.0/11", "44.192.140.64/28"]);
-    assert!(stderr.contains("failed to resolve awsipranges-test.invalid"));
+    assert!(stderr.contains("awsipranges-test.invalid did not resolve"));
 }
 
 /*--------------------------------------------------------------------------------------
