@@ -41,11 +41,11 @@ If you find this project useful, please consider giving it a star ⭐ on [GitHub
 
 You can build and install `awsipranges` from source or install pre-built binaries. `awsipranges` supports:
 
-| OS              | arm64 (AArch64)                     | amd64 (x86_64)                         |
-| --------------- | ----------------------------------- | -------------------------------------- |
-| **macOS**       | ✅ ⏬ Apple silicon                 | ✅ ⏬ Intel silicon                    |
-| **Linux**       | ✅ GNU (glibc) </BR> ✅ Musl (libc) | ✅ ⏬ GNU (glibc) </BR> ✅ Musl (libc) |
-| **Windows 10+** |                                     | ✅ ⏬ MSVC                             |
+| OS              | arm64 (AArch64)                         | amd64 (x86_64)                          |
+| --------------- | --------------------------------------- | --------------------------------------- |
+| **macOS**       | ✅ ⏬ Apple silicon                       | ✅ ⏬ Intel silicon                       |
+| **Linux**       | ✅ ⏬ GNU (glibc) </BR> ✅ ⏬ Musl (static) | ✅ ⏬ GNU (glibc) </BR> ✅ ⏬ Musl (static) |
+| **Windows 10+** |                                         | ✅ ⏬ MSVC                                |
 
 ✅ = Supported ⏬ = Pre-built binaries available
 
