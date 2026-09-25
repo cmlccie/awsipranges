@@ -72,6 +72,10 @@ Use the Makefile targets; they mirror CI.
     resolver (`ToSocketAddrs`); the resolver is a function parameter, so tests pass
     a fake. Failed lookups are reported, other results still print, and exit is 2.
     Hostname resolution is CLI-only; the library stays DNS-free.
+  - `cli/search.rs` — `Search` (a target and its networks) and `matches()`, which maps
+    each displayed AWS prefix back to the searches (and resolved addresses) it
+    contains. Table/CSV add a Matches column and JSON a `matches` field only when
+    searching; `-o cidr`/`netmask` stay one value per line for piping.
 
 `Rc<str>` makes `AwsIpRanges` `!Send`/`!Sync`. Changing it to `Arc<str>` affects the
 public API.

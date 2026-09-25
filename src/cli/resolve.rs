@@ -1,3 +1,4 @@
+use crate::cli::search::Search;
 use crate::cli::target::SearchTarget;
 use ipnetwork::IpNetwork;
 use std::collections::BTreeSet;
@@ -17,17 +18,24 @@ pub struct ResolveError {
     pub source: io::Error,
 }
 
-/// The IP networks to search for, and the outcome of resolving each hostname target.
+/// The searches to perform and the hostnames that could not be resolved.
 #[derive(Debug, Default)]
 pub struct Resolved {
-    /// Network targets and the addresses (as /32 or /128 networks) of resolved hostnames.
-    pub networks: Vec<IpNetwork>,
-
-    /// The addresses each hostname resolved to, in target order.
-    pub hostnames: Vec<(String, Vec<IpAddr>)>,
+    /// One search per IP address, CIDR, or successfully resolved hostname, in target order.
+    pub searches: Vec<Search>,
 
     /// Hostnames that could not be resolved.
     pub errors: Vec<ResolveError>,
+}
+
+impl Resolved {
+    /// All networks to search for, across searches.
+    pub fn networks(&self) -> Vec<IpNetwork> {
+        self.searches
+            .iter()
+            .flat_map(|search| search.networks.iter().copied())
+            .collect()
+    }
 }
 
 /// Resolve a hostname to its IPv4 (A) and IPv6 (AAAA) addresses with the system resolver,
@@ -39,7 +47,7 @@ pub fn system_resolver(hostname: &str) -> io::Result<BTreeSet<IpAddr>> {
         .collect())
 }
 
-/// Resolve the hostname targets with `resolve` and collect the networks to search.
+/// Resolve the hostname targets with `resolve` and build the searches to perform.
 pub fn resolve_targets(
     targets: &[SearchTarget],
     resolve: impl Fn(&str) -> io::Result<BTreeSet<IpAddr>>,
@@ -47,22 +55,22 @@ pub fn resolve_targets(
     targets
         .iter()
         .fold(Resolved::default(), |mut resolved, target| {
-            match target {
-                SearchTarget::Network(network) => resolved.networks.push(*network),
-                SearchTarget::Hostname(hostname) => match resolve(hostname).and_then(non_empty) {
-                    Ok(addresses) => {
-                        resolved
-                            .networks
-                            .extend(addresses.iter().copied().map(IpNetwork::from));
-                        resolved
-                            .hostnames
-                            .push((hostname.clone(), addresses.into_iter().collect()));
-                    }
-                    Err(source) => resolved.errors.push(ResolveError {
+            let networks = match target {
+                SearchTarget::Network(network) => Ok(vec![*network]),
+                SearchTarget::Hostname(hostname) => resolve(hostname)
+                    .and_then(non_empty)
+                    .map(|addresses| addresses.into_iter().map(IpNetwork::from).collect())
+                    .map_err(|source| ResolveError {
                         hostname: hostname.clone(),
                         source,
                     }),
-                },
+            };
+            match networks {
+                Ok(networks) => resolved.searches.push(Search {
+                    target: target.clone(),
+                    networks,
+                }),
+                Err(error) => resolved.errors.push(error),
             }
             resolved
         })
@@ -107,10 +115,10 @@ mod tests {
     fn test_networks_pass_through() {
         let resolved = resolve_targets(&targets(&["44.192.0.0/11", "2600::1"]), fake_resolver);
         assert_eq!(
-            resolved.networks,
+            resolved.networks(),
             ["44.192.0.0/11".parse().unwrap(), "2600::1".parse().unwrap()]
         );
-        assert!(resolved.hostnames.is_empty());
+        assert_eq!(resolved.searches.len(), 2);
         assert!(resolved.errors.is_empty());
     }
 
@@ -118,15 +126,15 @@ mod tests {
     fn test_hostnames_resolve_to_host_networks() {
         let resolved = resolve_targets(&targets(&["dual-stack.example"]), fake_resolver);
         assert_eq!(
-            resolved.networks,
-            [
-                "44.192.140.65/32".parse::<IpNetwork>().unwrap(),
-                "2600:1f1a:4000::1/128".parse().unwrap()
-            ]
+            resolved.searches,
+            [Search {
+                target: SearchTarget::Hostname("dual-stack.example".to_string()),
+                networks: vec![
+                    "44.192.140.65/32".parse().unwrap(),
+                    "2600:1f1a:4000::1/128".parse().unwrap()
+                ],
+            }]
         );
-        assert_eq!(resolved.hostnames.len(), 1);
-        assert_eq!(resolved.hostnames[0].0, "dual-stack.example");
-        assert_eq!(resolved.hostnames[0].1.len(), 2);
     }
 
     #[test]
@@ -140,7 +148,7 @@ mod tests {
             ]),
             fake_resolver,
         );
-        assert_eq!(resolved.networks.len(), 2);
+        assert_eq!(resolved.searches.len(), 2);
         let failed: Vec<&str> = resolved
             .errors
             .iter()

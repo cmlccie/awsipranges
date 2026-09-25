@@ -1,3 +1,4 @@
+use crate::cli::search::{self, Match, Search};
 use awsipranges::{AwsIpPrefix, AwsIpRanges};
 use chrono::{DateTime, Utc};
 use comfy_table::presets::{NOTHING, UTF8_FULL};
@@ -13,27 +14,36 @@ use std::io::{self, Write};
   Prefix Table
 --------------------------------------------------------------------------------------*/
 
-pub fn prefix_table(out: &mut impl Write, aws_ip_ranges: &AwsIpRanges) -> io::Result<()> {
+pub fn prefix_table(
+    out: &mut impl Write,
+    aws_ip_ranges: &AwsIpRanges,
+    searches: &[Search],
+) -> io::Result<()> {
     // Prefix Table
     let mut prefix_table = Table::new();
     prefix_table
         .load_style(UTF8_FULL.with_rounded_corners())
         .set_content_arrangement(ContentArrangement::Dynamic);
 
-    prefix_table.set_header(vec![
-        Cell::new("IP Prefix")
-            .add_attribute(Attribute::Bold)
-            .fg(Color::Green),
-        Cell::new("Region")
-            .add_attribute(Attribute::Bold)
-            .fg(Color::Green),
-        Cell::new("Network Border Group")
-            .add_attribute(Attribute::Bold)
-            .fg(Color::Green),
-        Cell::new("Services")
-            .add_attribute(Attribute::Bold)
-            .fg(Color::Green),
-    ]);
+    // Show which searches matched each prefix when searching
+    let searching = !searches.is_empty();
+    let header = [
+        "IP Prefix",
+        "Region",
+        "Network Border Group",
+        "Services",
+        "Matches",
+    ];
+    prefix_table.set_header(
+        header
+            .iter()
+            .take(if searching { 5 } else { 4 })
+            .map(|title| {
+                Cell::new(title)
+                    .add_attribute(Attribute::Bold)
+                    .fg(Color::Green)
+            }),
+    );
 
     for prefix in aws_ip_ranges.prefixes().values() {
         let mut sorted_services = prefix
@@ -44,12 +54,20 @@ pub fn prefix_table(out: &mut impl Write, aws_ip_ranges: &AwsIpRanges) -> io::Re
         sorted_services.sort();
         let services = sorted_services.join(", ");
 
-        prefix_table.add_row(vec![
+        let mut row = vec![
             Cell::new(prefix.prefix).add_attribute(Attribute::Bold),
             Cell::new(&prefix.region),
             Cell::new(&prefix.network_border_group),
             Cell::new(services),
-        ]);
+        ];
+        if searching {
+            let matches: Vec<String> = search::matches(prefix, searches)
+                .iter()
+                .map(Match::to_lines)
+                .collect();
+            row.push(Cell::new(matches.join("\n")));
+        }
+        prefix_table.add_row(row);
     }
 
     // Right-align the IP Prefix column
@@ -108,14 +126,35 @@ pub fn prefix_table(out: &mut impl Write, aws_ip_ranges: &AwsIpRanges) -> io::Re
 struct JsonOutput<'a> {
     sync_token: &'a str,
     create_date: &'a DateTime<Utc>,
-    prefixes: Vec<&'a AwsIpPrefix>,
+    prefixes: Vec<JsonPrefix<'a>>,
 }
 
-pub fn json(out: &mut impl Write, aws_ip_ranges: &AwsIpRanges) -> io::Result<()> {
+#[derive(Serialize)]
+struct JsonPrefix<'a> {
+    #[serde(flatten)]
+    prefix: &'a AwsIpPrefix,
+
+    /// The searches that matched the prefix; present only when searching.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    matches: Option<Vec<Match>>,
+}
+
+pub fn json(
+    out: &mut impl Write,
+    aws_ip_ranges: &AwsIpRanges,
+    searches: &[Search],
+) -> io::Result<()> {
     let json_output = JsonOutput {
         sync_token: aws_ip_ranges.sync_token(),
         create_date: aws_ip_ranges.create_date(),
-        prefixes: aws_ip_ranges.prefixes().values().collect(),
+        prefixes: aws_ip_ranges
+            .prefixes()
+            .values()
+            .map(|prefix| JsonPrefix {
+                prefix,
+                matches: (!searches.is_empty()).then(|| search::matches(prefix, searches)),
+            })
+            .collect(),
     };
     serde_json::to_writer_pretty(&mut *out, &json_output)?;
     writeln!(out)
@@ -128,6 +167,7 @@ pub fn json(out: &mut impl Write, aws_ip_ranges: &AwsIpRanges) -> io::Result<()>
 pub fn prefixes_in_cidr_format(
     out: &mut impl Write,
     aws_ip_ranges: &AwsIpRanges,
+    _searches: &[Search],
 ) -> io::Result<()> {
     aws_ip_ranges
         .prefixes()
@@ -142,6 +182,7 @@ pub fn prefixes_in_cidr_format(
 pub fn prefixes_in_netmask_format(
     out: &mut impl Write,
     aws_ip_ranges: &AwsIpRanges,
+    _searches: &[Search],
 ) -> io::Result<()> {
     aws_ip_ranges
         .prefixes()
@@ -160,15 +201,27 @@ pub fn prefixes_in_netmask_format(
   Regions, Network Border Groups, and Services
 --------------------------------------------------------------------------------------*/
 
-pub fn regions(out: &mut impl Write, aws_ip_ranges: &AwsIpRanges) -> io::Result<()> {
+pub fn regions(
+    out: &mut impl Write,
+    aws_ip_ranges: &AwsIpRanges,
+    _searches: &[Search],
+) -> io::Result<()> {
     lines(out, aws_ip_ranges.regions())
 }
 
-pub fn network_border_groups(out: &mut impl Write, aws_ip_ranges: &AwsIpRanges) -> io::Result<()> {
+pub fn network_border_groups(
+    out: &mut impl Write,
+    aws_ip_ranges: &AwsIpRanges,
+    _searches: &[Search],
+) -> io::Result<()> {
     lines(out, aws_ip_ranges.network_border_groups())
 }
 
-pub fn services(out: &mut impl Write, aws_ip_ranges: &AwsIpRanges) -> io::Result<()> {
+pub fn services(
+    out: &mut impl Write,
+    aws_ip_ranges: &AwsIpRanges,
+    _searches: &[Search],
+) -> io::Result<()> {
     lines(out, aws_ip_ranges.services())
 }
 

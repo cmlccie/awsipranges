@@ -159,7 +159,16 @@ Filters are combined: a prefix must match every filter you provide, and any of t
 
 ### Hostnames
 
-`awsipranges` resolves hostnames to their IPv4 (A) and IPv6 (AAAA) addresses with your system's resolver (so the hosts file, VPN, and corporate DNS settings apply), prints the addresses to stderr, and searches for all of them. Use `-4` or `-6` to consider only one address family. Keep in mind:
+`awsipranges` resolves hostnames to their IPv4 (A) and IPv6 (AAAA) addresses with your system's resolver (so the hosts file, VPN, and corporate DNS settings apply), prints the addresses to stderr, and searches for all of them. Use `-4` or `-6` to consider only one address family.
+
+When you search, the results show which search matched each AWS IP Prefix: the table and CSV output add a **Matches** column (listing a hostname with the resolved addresses in that prefix), and JSON output adds a `matches` list to each prefix:
+
+```shell
+awsipranges --output json ip-ranges.amazonaws.com 44.192.140.65 \
+  | jq -c '.prefixes[] | {prefix, matches}'
+```
+
+Keep in mind:
 
 - DNS answers can vary by location and over time (CDNs, load balancers, geo-DNS), so results reflect what your resolver returns at that moment.
 - If a hostname can't be resolved, `awsipranges` reports the error, still shows results for the other arguments, and exits with status `2`.

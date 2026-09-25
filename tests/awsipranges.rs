@@ -104,15 +104,81 @@ fn command_output_json() {
                 "region": "us-east-1",
                 "network_border_group": "us-east-1",
                 "services": ["AMAZON", "EC2"],
+                "matches": [{"search": "44.192.140.65", "addresses": ["44.192.140.65"]}],
             },
             {
                 "prefix": "44.192.140.64/28",
                 "region": "us-east-1",
                 "network_border_group": "us-east-1",
                 "services": ["S3"],
+                "matches": [{"search": "44.192.140.65", "addresses": ["44.192.140.65"]}],
             },
         ])
     );
+}
+
+#[test]
+fn command_output_json_without_search_has_no_matches() {
+    let (code, stdout, _) = run(awsipranges().args(["--output", "json", "--region", "eu-west-1"]));
+    assert_eq!(code, 0);
+
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let prefixes = json["prefixes"].as_array().unwrap();
+    assert_eq!(prefixes.len(), 2);
+    assert!(
+        prefixes
+            .iter()
+            .all(|prefix| prefix.get("matches").is_none())
+    );
+}
+
+#[test]
+fn command_output_json_matches_each_search_to_its_prefixes() {
+    let (code, stdout, _) = run(awsipranges().args([
+        "--output",
+        "json",
+        "44.192.140.65",
+        "16.12.96.0/22",
+        "2600:1f1a:4000::1",
+    ]));
+    assert_eq!(code, 0);
+
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let matches: Vec<(String, String)> = json["prefixes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|prefix| {
+            prefix["matches"].as_array().unwrap().iter().map(|m| {
+                (
+                    prefix["prefix"].as_str().unwrap().to_string(),
+                    m["search"].as_str().unwrap().to_string(),
+                )
+            })
+        })
+        .collect();
+    let expected = [
+        ("16.12.96.0/21", "16.12.96.0/22"),
+        ("44.192.0.0/11", "44.192.140.65"),
+        ("44.192.140.64/28", "44.192.140.65"),
+        ("2600:1f1a:4000::/36", "2600:1f1a:4000::1"),
+    ];
+    assert_eq!(
+        matches,
+        expected.map(|(prefix, search)| (prefix.to_string(), search.to_string()))
+    );
+}
+
+#[test]
+fn command_output_table_shows_matches_when_searching() {
+    let (code, stdout, _) = run(awsipranges().args(["44.192.140.65", "16.12.96.1"]));
+    assert_eq!(code, 0);
+    assert!(stdout.contains("Matches"), "{stdout}");
+    assert!(stdout.contains("16.12.96.1"), "{stdout}");
+
+    let (code, stdout, _) = run(awsipranges().args(["--region", "eu-west-1"]));
+    assert_eq!(code, 0);
+    assert!(!stdout.contains("Matches"), "{stdout}");
 }
 
 #[test]
@@ -348,9 +414,9 @@ fn command_save_to_csv() {
     assert_eq!(
         lines(&std::fs::read_to_string(csv_file).unwrap()),
         [
-            "AWS IP Prefix,Region,Network Border Group,Services",
-            "44.192.0.0/11,us-east-1,us-east-1,\"AMAZON, EC2\"",
-            "44.192.140.64/28,us-east-1,us-east-1,S3",
+            "AWS IP Prefix,Region,Network Border Group,Services,Matches",
+            "44.192.0.0/11,us-east-1,us-east-1,\"AMAZON, EC2\",44.192.140.65",
+            "44.192.140.64/28,us-east-1,us-east-1,S3,44.192.140.65",
         ]
     );
 }

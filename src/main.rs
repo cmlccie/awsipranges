@@ -53,15 +53,18 @@ fn run(args: &cli::Args) -> Result<ExitCode, Box<dyn Error>> {
     // Resolve hostnames to the IP addresses to search for
     let resolved = cli::resolve::resolve_targets(&args.search, cli::resolve::system_resolver);
     if !args.verbose.is_silent() {
-        for (hostname, addresses) in &resolved.hostnames {
-            let addresses: Vec<String> = addresses.iter().map(ToString::to_string).collect();
-            eprintln!("{hostname} resolves to {}", addresses.join(", "));
+        for search in &resolved.searches {
+            if let cli::SearchTarget::Hostname(hostname) = &search.target {
+                let addresses: Vec<String> =
+                    search.networks.iter().map(|n| n.ip().to_string()).collect();
+                eprintln!("{hostname} resolves to {}", addresses.join(", "));
+            }
         }
     }
     resolved.errors.iter().for_each(|error| report(error));
 
     // Nothing left to search for: every target was a hostname that failed to resolve
-    if !args.search.is_empty() && resolved.networks.is_empty() {
+    if !args.search.is_empty() && resolved.searches.is_empty() {
         return Ok(ExitCode::from(EXIT_ERROR));
     }
 
@@ -78,7 +81,7 @@ fn run(args: &cli::Args) -> Result<ExitCode, Box<dyn Error>> {
 
     // Search for the IP addresses and networks
     let search_results =
-        (!args.search.is_empty()).then(|| aws_ip_ranges.search(&resolved.networks));
+        (!args.search.is_empty()).then(|| aws_ip_ranges.search(&resolved.networks()));
 
     // Apply Filters
     let filters_enabled = [
@@ -112,7 +115,7 @@ fn run(args: &cli::Args) -> Result<ExitCode, Box<dyn Error>> {
         .unwrap_or(&aws_ip_ranges);
 
     // Log search results
-    cli::log::search_results(&resolved.networks, search_results.as_deref());
+    cli::log::search_results(&resolved.networks(), search_results.as_deref());
 
     // Report failed hostname lookups in the exit status, after displaying any results
     let resolve_failed = !resolved.errors.is_empty();
@@ -130,7 +133,7 @@ fn run(args: &cli::Args) -> Result<ExitCode, Box<dyn Error>> {
 
     // Save results to CSV file
     if let Some(csv_file_path) = &args.csv_file {
-        cli::csv::save(display_aws_ip_ranges, csv_file_path)?;
+        cli::csv::save(display_aws_ip_ranges, &resolved.searches, csv_file_path)?;
     };
 
     // Display selected CLI output
@@ -144,7 +147,7 @@ fn run(args: &cli::Args) -> Result<ExitCode, Box<dyn Error>> {
         cli::OutputFormat::NetworkBorderGroups => cli::output::network_border_groups,
         cli::OutputFormat::Services => cli::output::services,
     };
-    output(&mut out, display_aws_ip_ranges)?;
+    output(&mut out, display_aws_ip_ranges, &resolved.searches)?;
     out.flush()?;
 
     Ok(if resolve_failed {
