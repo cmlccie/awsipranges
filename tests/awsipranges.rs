@@ -163,6 +163,14 @@ fn command_search_not_found_exits_1() {
 }
 
 #[test]
+fn command_search_not_found_quiet_is_silent() {
+    let (code, stdout, stderr) = run(awsipranges().args(["--quiet", "1.1.1.1"]));
+    assert_eq!(code, 1);
+    assert!(stdout.is_empty());
+    assert!(stderr.is_empty(), "{stderr}");
+}
+
+#[test]
 fn command_search_broad_prefix_does_not_panic() {
     let (code, _, stderr) = run(awsipranges().arg("0.0.0.0/0"));
     assert_eq!(code, 1, "{stderr}");

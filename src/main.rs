@@ -102,7 +102,9 @@ fn run(args: &cli::Args) -> Result<ExitCode, Box<dyn Error>> {
     cli::log::search_results(&search_cidrs, &search_results);
 
     if display_aws_ip_ranges.prefixes().is_empty() {
-        eprintln!("\nNo AWS IP Prefixes match the provided criteria.\n");
+        if !args.verbose.is_silent() {
+            eprintln!("\nNo AWS IP Prefixes match the provided criteria.\n");
+        }
         return Ok(ExitCode::from(EXIT_NO_MATCH));
     }
 
