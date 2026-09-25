@@ -1,242 +1,269 @@
 use assert_cmd::Command;
+use std::path::PathBuf;
 
 /*-------------------------------------------------------------------------------------------------
   awsipranges Binary Tests
 -------------------------------------------------------------------------------------------------*/
 
 /*--------------------------------------------------------------------------------------
-  No Arguments - Parse and Display All AWS IP Ranges
+  Test Helpers
 --------------------------------------------------------------------------------------*/
 
-#[test]
-fn command_no_args() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .assert()
-        .success();
+/// A small, real subset of the AWS IP Ranges JSON.
+fn fixture() -> PathBuf {
+    [
+        env!("CARGO_MANIFEST_DIR"),
+        "tests",
+        "fixtures",
+        "ip-ranges.json",
+    ]
+    .iter()
+    .collect()
+}
+
+/// An `awsipranges` command that reads the fixture offline, isolated from the caller's
+/// environment.
+fn awsipranges() -> Command {
+    let mut command = Command::cargo_bin("awsipranges").unwrap();
+    command
+        .env_clear()
+        .env("AWSIPRANGES_CACHE_FILE", fixture())
+        .arg("--offline");
+    command
+}
+
+/// Run a command and return its exit code, stdout, and stderr.
+fn run(command: &mut Command) -> (i32, String, String) {
+    let output = command.output().unwrap();
+    (
+        output.status.code().unwrap(),
+        String::from_utf8(output.stdout).unwrap(),
+        String::from_utf8(output.stderr).unwrap(),
+    )
+}
+
+/// Lines of output, for exact comparisons.
+fn lines(output: &str) -> Vec<&str> {
+    output.lines().collect()
 }
 
 /*--------------------------------------------------------------------------------------
-  Version
+  No Arguments and Version
 --------------------------------------------------------------------------------------*/
 
 #[test]
+fn command_no_args_displays_all_prefixes() {
+    let (code, stdout, _) = run(&mut awsipranges());
+    assert_eq!(code, 0);
+    assert!(stdout.contains("44.192.0.0/11"));
+    assert!(stdout.contains("2600:1f1a:4000::/36"));
+    assert!(stdout.contains("17  AWS IP Prefixes"), "{stdout}");
+}
+
+#[test]
 fn command_version() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--version")
-        .assert()
-        .success();
+    let (code, stdout, _) = run(Command::cargo_bin("awsipranges").unwrap().arg("--version"));
+    assert_eq!(code, 0);
+    assert!(stdout.starts_with("awsipranges "));
 }
 
 /*--------------------------------------------------------------------------------------
   Output Formats
 --------------------------------------------------------------------------------------*/
 
-/*-----------------------------------------------------------------------------
-  Output: Table
------------------------------------------------------------------------------*/
-
-#[test]
-fn command_output_table() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--output")
-        .arg("table")
-        .assert()
-        .success();
-}
-
-/*-----------------------------------------------------------------------------
-  Output: CIDR
------------------------------------------------------------------------------*/
-
 #[test]
 fn command_output_cidr() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--output")
-        .arg("cidr")
-        .assert()
-        .success();
+    let (code, stdout, _) = run(awsipranges().args(["--output", "cidr", "44.192.140.65"]));
+    assert_eq!(code, 0);
+    assert_eq!(lines(&stdout), ["44.192.0.0/11", "44.192.140.64/28"]);
 }
-
-/*--------------------------------------------------------------------------------------
-  Output: Netmask
---------------------------------------------------------------------------------------*/
 
 #[test]
 fn command_output_netmask() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--output")
-        .arg("netmask")
-        .assert()
-        .success();
+    let (code, stdout, _) = run(awsipranges().args(["--output", "netmask", "44.192.140.65"]));
+    assert_eq!(code, 0);
+    assert_eq!(
+        lines(&stdout),
+        ["44.192.0.0 255.224.0.0", "44.192.140.64 255.255.255.240"]
+    );
 }
 
-/*-----------------------------------------------------------------------------
-  Output: Regions
------------------------------------------------------------------------------*/
+#[test]
+fn command_output_json() {
+    let (code, stdout, _) = run(awsipranges().args(["--output", "json", "44.192.140.65"]));
+    assert_eq!(code, 0);
+
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(json["sync_token"], "1790249826");
+    assert_eq!(json["create_date"], "2026-09-24T11:37:06Z");
+    assert_eq!(
+        json["prefixes"],
+        serde_json::json!([
+            {
+                "prefix": "44.192.0.0/11",
+                "region": "us-east-1",
+                "network_border_group": "us-east-1",
+                "services": ["AMAZON", "EC2"],
+            },
+            {
+                "prefix": "44.192.140.64/28",
+                "region": "us-east-1",
+                "network_border_group": "us-east-1",
+                "services": ["S3"],
+            },
+        ])
+    );
+}
 
 #[test]
 fn command_output_regions() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--output")
-        .arg("regions")
-        .assert()
-        .success();
+    let (code, stdout, _) = run(awsipranges().args(["--output", "regions"]));
+    assert_eq!(code, 0);
+    assert_eq!(
+        lines(&stdout),
+        ["GLOBAL", "ca-west-1", "eu-west-1", "us-east-1", "us-west-2"]
+    );
 }
-
-/*-----------------------------------------------------------------------------
-  Output: Network Border Groups
------------------------------------------------------------------------------*/
 
 #[test]
 fn command_output_network_border_groups() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--output")
-        .arg("network-border-groups")
-        .assert()
-        .success();
+    let (code, stdout, _) = run(awsipranges().args(["--output", "network-border-groups"]));
+    assert_eq!(code, 0);
+    assert!(lines(&stdout).contains(&"us-east-1-atl-1"));
 }
-
-/*-----------------------------------------------------------------------------
-  Output: Services
------------------------------------------------------------------------------*/
 
 #[test]
 fn command_output_services() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--output")
-        .arg("services")
-        .assert()
-        .success();
+    let (code, stdout, _) = run(awsipranges().args(["--output", "services"]));
+    assert_eq!(code, 0);
+    assert_eq!(lines(&stdout), ["AMAZON", "CLOUDFRONT", "EC2", "S3"]);
 }
 
 /*--------------------------------------------------------------------------------------
   Search
 --------------------------------------------------------------------------------------*/
 
-/*-----------------------------------------------------------------------------
-  Search: IP Address
------------------------------------------------------------------------------*/
-
 #[test]
-fn command_search_ip_address() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("44.192.140.65")
-        .assert()
-        .success();
+fn command_search_ipv6_address() {
+    let (code, stdout, _) = run(awsipranges().args([
+        "--output",
+        "cidr",
+        "2600:1f1a:4000:a03a:54b4:19e6:f50c:9d01",
+    ]));
+    assert_eq!(code, 0);
+    assert_eq!(lines(&stdout), ["2600:1f1a:4000::/36"]);
 }
 
-/*-----------------------------------------------------------------------------
-  Search: IP Address Not Found
------------------------------------------------------------------------------*/
+#[test]
+fn command_search_not_found_exits_1() {
+    let (code, stdout, stderr) = run(awsipranges().arg("1.1.1.1"));
+    assert_eq!(code, 1);
+    assert!(stdout.is_empty());
+    assert!(stderr.contains("No AWS IP Prefixes match"));
+}
 
 #[test]
-fn command_search_ip_address_not_found() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("1.1.1.1")
-        .assert()
-        .failure()
-        .code(1);
+fn command_search_broad_prefix_does_not_panic() {
+    let (code, _, stderr) = run(awsipranges().arg("0.0.0.0/0"));
+    assert_eq!(code, 1, "{stderr}");
 }
 
 /*--------------------------------------------------------------------------------------
   Filter
 --------------------------------------------------------------------------------------*/
 
-/*-----------------------------------------------------------------------------
-  Filter: IPv4
------------------------------------------------------------------------------*/
-
 #[test]
-fn command_filter_ipv4() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--ipv4")
-        .assert()
-        .success();
+fn command_filter_ipv4_region_service() {
+    let (code, stdout, _) = run(awsipranges().args([
+        "--ipv4",
+        "--region",
+        "us-west-2",
+        "--service",
+        "s3",
+        "--output",
+        "cidr",
+    ]));
+    assert_eq!(code, 0);
+    assert_eq!(
+        lines(&stdout),
+        ["16.12.88.0/21", "16.12.96.0/21", "16.12.104.0/21"]
+    );
 }
-
-/*-----------------------------------------------------------------------------
-  Filter: IPv6
------------------------------------------------------------------------------*/
 
 #[test]
 fn command_filter_ipv6() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--ipv6")
-        .assert()
-        .success();
+    let (code, stdout, _) = run(awsipranges().args(["--ipv6", "--output", "cidr"]));
+    assert_eq!(code, 0);
+    assert_eq!(lines(&stdout).len(), 5);
+    assert!(lines(&stdout).iter().all(|prefix| prefix.contains(':')));
 }
-
-/*-----------------------------------------------------------------------------
-  Filter: Region
------------------------------------------------------------------------------*/
-
-#[test]
-fn command_filter_region() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--region")
-        .arg("us-east-1")
-        .assert()
-        .success();
-}
-
-/*-----------------------------------------------------------------------------
-  Filter: Network Border Group
------------------------------------------------------------------------------*/
 
 #[test]
 fn command_filter_network_border_group() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--network-border-group")
-        .arg("us-east-1-atl-1")
-        .assert()
-        .success();
+    let (code, stdout, _) = run(awsipranges().args([
+        "--network-border-group",
+        "US-EAST-1-ATL-1",
+        "--output",
+        "cidr",
+    ]));
+    assert_eq!(code, 0);
+    assert_eq!(
+        lines(&stdout),
+        ["15.181.80.0/20", "15.181.247.0/24", "15.220.233.0/24"]
+    );
 }
 
-/*-----------------------------------------------------------------------------
-  Filter: Service
------------------------------------------------------------------------------*/
-
 #[test]
-fn command_filter_service() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--service")
-        .arg("S3")
-        .assert()
-        .success();
+fn command_filter_global_region() {
+    let (code, stdout, _) = run(awsipranges().args(["--region", "global", "--output", "cidr"]));
+    assert_eq!(code, 0);
+    assert_eq!(lines(&stdout), ["23.228.249.0/24", "120.52.22.96/27"]);
 }
 
-/*-----------------------------------------------------------------------------
-  Filter - IPv4, Region, Network Border Group, Service
------------------------------------------------------------------------------*/
+#[test]
+fn command_filter_unknown_region_exits_2_with_hint() {
+    let (code, _, stderr) = run(awsipranges().args(["--region", "nowhere"]));
+    assert_eq!(code, 2);
+    assert!(
+        stderr.contains("error: unknown region: nowhere"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("hint:"), "{stderr}");
+}
+
+/*--------------------------------------------------------------------------------------
+  Cache
+--------------------------------------------------------------------------------------*/
 
 #[test]
-fn command_filter_ipv4_region_network_border_group_service() {
-    Command::cargo_bin("awsipranges")
+fn command_offline_without_cache_exits_2() {
+    let (code, _, stderr) = run(Command::cargo_bin("awsipranges")
         .unwrap()
-        .arg("--ipv4")
-        .arg("--region")
-        .arg("us-east-1")
-        .arg("--network-border-group")
-        .arg("us-east-1-atl-1")
-        .arg("--service")
-        .arg("EC2")
-        .assert()
-        .success();
+        .env_clear()
+        .env("AWSIPRANGES_CACHE_FILE", "/nonexistent/ip-ranges.json")
+        .arg("--offline"));
+    assert_eq!(code, 2);
+    assert!(stderr.contains("failed to read the AWS IP Ranges cache file"));
+}
+
+#[test]
+fn command_refresh_conflicts_with_offline() {
+    let (code, _, _) = run(awsipranges().arg("--refresh"));
+    assert_eq!(code, 2);
+}
+
+/// Smoke test against the real AWS IP Ranges URL.
+#[test]
+fn command_live_download() {
+    let cache_dir = tempfile::tempdir().unwrap();
+    let cache_file = cache_dir.path().join("ip-ranges.json");
+    let (code, stdout, stderr) = run(Command::cargo_bin("awsipranges")
+        .unwrap()
+        .env("AWSIPRANGES_CACHE_FILE", &cache_file)
+        .args(["--output", "services"]));
+    assert_eq!(code, 0, "{stderr}");
+    assert!(lines(&stdout).contains(&"EC2"));
+    assert!(cache_file.exists());
 }
 
 /*--------------------------------------------------------------------------------------
@@ -245,10 +272,33 @@ fn command_filter_ipv4_region_network_border_group_service() {
 
 #[test]
 fn command_save_to_csv() {
-    Command::cargo_bin("awsipranges")
-        .unwrap()
-        .arg("--csv")
-        .arg("./scratch/command_save_to_csv.csv")
-        .assert()
-        .success();
+    let output_dir = tempfile::tempdir().unwrap();
+    let csv_file = output_dir.path().join("prefixes.csv");
+    let (code, _, _) = run(awsipranges()
+        .args(["--output", "cidr", "44.192.140.65", "--csv"])
+        .arg(&csv_file));
+    assert_eq!(code, 0);
+    assert_eq!(
+        lines(&std::fs::read_to_string(csv_file).unwrap()),
+        [
+            "AWS IP Prefix,Region,Network Border Group,Services",
+            "44.192.0.0/11,us-east-1,us-east-1,\"AMAZON, EC2\"",
+            "44.192.140.64/28,us-east-1,us-east-1,S3",
+        ]
+    );
+}
+
+/*--------------------------------------------------------------------------------------
+  Shell Completions
+--------------------------------------------------------------------------------------*/
+
+#[test]
+fn command_completions() {
+    for shell in ["bash", "zsh", "fish", "powershell", "elvish"] {
+        let (code, stdout, _) = run(Command::cargo_bin("awsipranges")
+            .unwrap()
+            .args(["--completions", shell]));
+        assert_eq!(code, 0, "{shell}");
+        assert!(stdout.contains("awsipranges"), "{shell}");
+    }
 }

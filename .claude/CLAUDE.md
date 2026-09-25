@@ -10,26 +10,27 @@ Use the Makefile targets; they mirror CI.
 
 - `make lint` — `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and
   rustdoc with `-D warnings`. CI fails on any warning.
-- `make tests` — runs `cargo test -- --test-threads=1`.
+- `make tests` — runs `cargo test` (tests are parallel-safe).
 - `make msrv` — `cargo check` on the `rust-version` in `Cargo.toml` (needs that
   toolchain installed via rustup).
 - `make coverage` — `cargo llvm-cov` to `target/coverage/tests.lcov` (skips doctests;
   CI runs `cargo test --doc` separately).
 - `make format` — `cargo fmt` (edition 2024 style).
 
-## Testing gotchas
+## Testing
 
-- **Tests must run single-threaded** (`--test-threads=1`). The client tests set and
-  unset process-wide `AWSIPRANGES_*` environment variables, and several tests share the
-  cache file.
-- **Most tests need network access.** Integration tests (`tests/awsipranges.rs`),
-  doctests, and the `lib_demo` example download the live `ip-ranges.json` into
-  `~/.aws/ip-ranges.json`. Unit tests in `src/core/*` use in-memory fixtures
-  (`aws_ip_ranges::tests::test_aws_ip_ranges`, `aws_ip_prefix::tests::*`).
-- Tests that depend on live data (e.g. `44.192.140.65`, network border group
-  `us-east-1-atl-1`) can break if AWS changes its published ranges. Check the live
-  data before debugging code.
-- Test output files are written to `./scratch/`, which git ignores.
+- **Tests are deterministic and offline by default.** `tests/fixtures/ip-ranges.json` is
+  a small, real subset of the AWS data (17 prefixes, IPv4 and IPv6, duplicates merged by
+  service). CLI tests run the binary with `--offline` against it (`awsipranges()` helper
+  in `tests/awsipranges.rs`) and assert exact output. Library tests use it through
+  `core::test_utils::FIXTURE_JSON`.
+- **Test HTTP behavior with `core::test_utils::serve`**, a scripted loopback server
+  (responses per connection: `HttpResponse::ok`, `::status`, `::Stall`), not the real URL.
+- Only a few smoke tests hit the network: `client::tests::test_get_ranges_from_aws`,
+  `command_live_download`, the doctests, and the `lib_demo` example.
+- Don't mutate process environment variables in tests; use
+  `ClientBuilder::from_env(lookup)`. Write temporary files with `tempfile`.
+- If you change the fixture, update the exact-output assertions that depend on it.
 
 ## Architecture
 
