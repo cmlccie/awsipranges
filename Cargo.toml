@@ -53,7 +53,7 @@ ci = "github"
 # The installers to generate for each app
 installers = ["shell", "powershell", "homebrew", "msi"]
 # A GitHub repo to push Homebrew formulas to
-tap = "cmlccie/tap"
+tap = "cmlccie/homebrew-tap"
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = [
   "aarch64-apple-darwin",
