@@ -293,7 +293,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: true
-          repository: "cmlccie/tap"
+          repository: "cmlccie/homebrew-tap"
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       # So we have access to the formula
       - name: Fetch homebrew formulae

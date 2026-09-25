@@ -81,5 +81,7 @@ public API.
   hand-edit it except for Dependabot action bumps (`allow-dirty = ["ci"]` permits
   those). To upgrade dist, bump the version in `Cargo.toml`, temporarily remove
   `allow-dirty`, and run `dist generate --mode=ci`.
+  Afterwards, diff the regenerated workflow: dist uses `tap` in `Cargo.toml` verbatim as
+  the tap repo, so it must be the full repo name (`cmlccie/homebrew-tap`).
 - `.github/mergify.yml` auto-merges Dependabot PRs only after the Lint, MSRV, and
   Tests checks succeed. If you rename a CI job, update these check names.
