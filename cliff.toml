@@ -64,6 +64,10 @@ commit_parsers = [
   { message = "^style", group = "<!-- 5 -->🎨 Styling" },
   { message = "^test", group = "<!-- 6 -->🧪 Testing" },
   { message = "^chore\\(release\\): prepare for", skip = true },
+  # Dependabot creates two commits per update: the branch commit ("bump log")
+  # and the PR merge commit ("bump log from 0.4.34 to 0.4.35 (#234)"). List the
+  # merge commits, which carry the versions, and skip the rest to avoid duplicates.
+  { message = "^chore\\(deps[^)]*\\): .*\\(#[0-9]+\\)", group = "<!-- 99 -->📦 Dependencies" },
   { message = "^chore\\(deps.*\\)", skip = true },
   { message = "^chore\\(pr\\)", skip = true },
   { message = "^chore\\(pull\\)", skip = true },
